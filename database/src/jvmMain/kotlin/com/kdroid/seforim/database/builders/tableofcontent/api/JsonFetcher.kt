@@ -1,6 +1,6 @@
 package com.kdroid.seforim.database.builders.tableofcontent.api
 
-import com.kdroid.seforim.database.builders.tableofcontent.model.TableOfContent
+import com.kdroid.seforim.core.model.TableOfContent
 import com.kdroid.seforim.database.common.constants.BASE_URL
 import io.ktor.client.*
 import io.ktor.client.call.*

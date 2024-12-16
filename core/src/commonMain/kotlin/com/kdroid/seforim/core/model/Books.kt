@@ -43,3 +43,13 @@ data class BookIndex(
     val chapters: List<ChapterIndex>,
     val description: String? = null
 )
+
+
+@Serializable
+data class DirectoryNode(
+    val name: String,
+    val path: String,
+    val children: List<DirectoryNode> = emptyList(),
+    val isLeaf: Boolean = false,
+    val hebrewTitle: String? = null
+)

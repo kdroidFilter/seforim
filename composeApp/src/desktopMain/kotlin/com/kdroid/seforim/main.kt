@@ -1,12 +1,21 @@
 package com.kdroid.seforim
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.application
+import com.kdroid.seforim.ui.DisplayTree
 import com.kdroid.seforim.ui.TitleBarView
 import com.kdroid.seforim.utils.DarkModeDetector
+import org.jetbrains.jewel.foundation.modifier.trackActivation
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.standalone.theme.*
 import org.jetbrains.jewel.intui.window.decoratedWindow
@@ -45,7 +54,11 @@ fun main() {
                 title = "Seforim",
                 content = {
                     TitleBarView()
-                    App()
+                    Column (
+                        Modifier.trackActivation().fillMaxSize().background(JewelTheme.globalColors.panelBackground).padding(24.dp),
+                    ) {
+                        DisplayTree()
+                    }
                 },
             )
 

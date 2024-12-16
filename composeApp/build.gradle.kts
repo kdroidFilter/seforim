@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
@@ -36,12 +37,15 @@ kotlin {
             implementation(compose.components.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.lifecycle.runtime.compose)
+
+            implementation(libs.ktor.serialization.kotlinx.protobuf)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs) {
                 exclude(group = "org.jetbrains.compose.material")
             }
             implementation(libs.kotlinx.coroutines.swing)
+
             implementation(libs.jewel)
             implementation(libs.jewel.decorated)
             implementation(libs.jewel.markdown.core)
@@ -49,6 +53,8 @@ kotlin {
             implementation(libs.jewel.markdown.extension.autolink)
             implementation(libs.jewel.markdown.extension.gfmalerts)
             implementation(libs.jewel.foundation)
+            implementation(libs.intelig.icons)
+
             implementation(libs.jna)
             implementation(libs.jna.platform)
             implementation(libs.slf4j.simple)

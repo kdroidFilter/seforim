@@ -1,7 +1,8 @@
 package com.kdroid.seforim.database.builders.tableofcontent.util
 
-import com.kdroid.seforim.database.builders.tableofcontent.model.ContentItem
-import com.kdroid.seforim.database.builders.tableofcontent.model.TableOfContent
+import com.kdroid.seforim.core.model.ContentItem
+import com.kdroid.seforim.core.model.TableOfContent
+
 import org.jetbrains.jewel.foundation.lazy.tree.ChildrenGeneratorScope
 import org.jetbrains.jewel.foundation.lazy.tree.Tree
 import org.jetbrains.jewel.foundation.lazy.tree.buildTree

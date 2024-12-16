@@ -5,7 +5,7 @@ import com.kdroid.seforim.core.model.ChapterIndex
 import com.kdroid.seforim.core.model.Commentary
 import com.kdroid.seforim.core.model.Verse
 import com.kdroid.seforim.database.builders.book.api.fetchJsonFromApi
-import com.kdroid.seforim.database.builders.book.api.json
+import com.kdroid.seforim.database.common.config.json
 import com.kdroid.seforim.database.builders.book.model.CommentItem
 import com.kdroid.seforim.database.builders.book.model.ShapeItem
 import com.kdroid.seforim.database.builders.book.model.VerseResponse

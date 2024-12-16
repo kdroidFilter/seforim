@@ -1,4 +1,4 @@
-package com.kdroid.seforim.database.builders.book.api
+package com.kdroid.seforim.database.common.config
 
 import kotlinx.serialization.json.Json
 

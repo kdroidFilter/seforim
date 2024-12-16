@@ -9,7 +9,7 @@ import kotlinx.coroutines.runBlocking
 
 fun main() {
     runBlocking {
-       // saveToProtobuf(fetchTableOfContents(), "$GENERATED_FOLDER/$TABLE_OF_CONTENTS.proto")
+        saveToProtobuf(fetchTableOfContents(), "$GENERATED_FOLDER/$TABLE_OF_CONTENTS.proto")
         saveToJson(fetchTableOfContents(), "$GENERATED_FOLDER/$TABLE_OF_CONTENTS.json")
     }
 }

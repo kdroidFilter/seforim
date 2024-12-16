@@ -1,6 +1,6 @@
 package com.kdroid.seforim.database.common.filesutils
 
-import com.kdroid.seforim.database.builders.tableofcontent.model.TableOfContent
+import com.kdroid.seforim.core.model.TableOfContent
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.json.Json
