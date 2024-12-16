@@ -3,10 +3,10 @@ package com.kdroid.seforim.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.kdroid.seforim.core.model.DirectoryNode
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -21,6 +21,7 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.standalone.styling.defaults
 import org.jetbrains.jewel.ui.component.LazyTree
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.VerticallyScrollableContainer
 import org.jetbrains.jewel.ui.component.styling.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.theme.treeStyle
@@ -70,12 +71,12 @@ fun DisplayTree() {
     val layoutDirection = LocalLayoutDirection.current
 
     val treeIcons = remember(layoutDirection) {
-            LazyTreeIcons(
-                chevronCollapsed = AllIconsKeys.General.ChevronLeft,
-                chevronExpanded = AllIconsKeys.General.ChevronDown,
-                chevronSelectedCollapsed = AllIconsKeys.General.ChevronLeft,
-                chevronSelectedExpanded = AllIconsKeys.General.ChevronDown,
-            )
+        LazyTreeIcons(
+            chevronCollapsed = AllIconsKeys.General.ChevronLeft,
+            chevronExpanded = AllIconsKeys.General.ChevronDown,
+            chevronSelectedCollapsed = AllIconsKeys.General.ChevronLeft,
+            chevronSelectedExpanded = AllIconsKeys.General.ChevronDown,
+        )
     }
 
     val defaultTreeStyle = LazyTreeStyle(
@@ -94,23 +95,28 @@ fun DisplayTree() {
 
     CompositionLocalProvider(LocalLazyTreeStyle provides defaultTreeStyle) {
         Box(
-            Modifier
-                .fillMaxSize()
+            Modifier.fillMaxSize()
         ) {
-            LazyTree(
-                tree = tree,
-                modifier = Modifier.fillMaxSize(),
-                onElementClick = { element ->
-                    val directoryNode = element.data
-                    println("Path: ${directoryNode.path}")
-                },
-                onElementDoubleClick = { element ->
-                    val directoryNode = element.data
-                    println("ID: ${directoryNode.name}")
-                }
-            ) { element ->
-                    Text(element.data.hebrewTitle ?: element.data.name, Modifier.padding(2.dp))
 
+            val scrollState = rememberLazyListState()
+            VerticallyScrollableContainer(
+                scrollState,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                LazyTree(
+                    tree = tree,
+                    modifier = Modifier.fillMaxSize(),
+                    onElementClick = { element ->
+                        val directoryNode = element.data
+                        println("Path: ${directoryNode.path}")
+                    },
+                    onElementDoubleClick = { element ->
+                        val directoryNode = element.data
+                        println("ID: ${directoryNode.name}")
+                    }
+                ) { element ->
+                    Text(element.data.hebrewTitle ?: element.data.name, Modifier.padding(2.dp))
+                }
             }
         }
     }

@@ -54,6 +54,7 @@ kotlin {
             implementation(libs.jewel.markdown.extension.gfmalerts)
             implementation(libs.jewel.foundation)
             implementation(libs.intelig.icons)
+            implementation(libs.compose.splitpane)
 
             implementation(libs.jna)
             implementation(libs.jna.platform)

@@ -57,6 +57,8 @@ jewel-markdown-intUiStandaloneStyling = { group = "org.jetbrains.jewel", name = 
 jewel-markdown-extension-autolink = { group =  "org.jetbrains.jewel", name ="jewel-markdown-extension-autolink-242", version.ref = "jewel"}
 jewel-markdown-extension-gfmalerts = { group =  "org.jetbrains.jewel", name ="jewel-markdown-extension-gfm-alerts-242", version.ref = "jewel"}
 jewel-foundation = { group =  "org.jetbrains.jewel", name ="jewel-foundation-242", version.ref = "jewel"}
+compose-splitpane = { group = "org.jetbrains.compose.components", name = "components-splitpane-desktop", version.ref = "compose-multiplatform" }
+
 zstd-jni = { module = "com.github.luben:zstd-jni", version.ref = "zstdJni" }
 
 [plugins]
