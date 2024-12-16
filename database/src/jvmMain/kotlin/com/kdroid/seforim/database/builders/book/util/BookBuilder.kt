@@ -1,15 +1,16 @@
-package com.kdroid.seforim.database.bookbuilder.util
+package com.kdroid.seforim.database.builders.book.util
 
 import com.kdroid.seforim.core.model.BookIndex
 import com.kdroid.seforim.core.model.ChapterIndex
 import com.kdroid.seforim.core.model.Commentary
 import com.kdroid.seforim.core.model.Verse
-import com.kdroid.seforim.database.bookbuilder.api.fetchJsonFromApi
-import com.kdroid.seforim.database.bookbuilder.api.json
-import com.kdroid.seforim.database.bookbuilder.model.CommentItem
-import com.kdroid.seforim.database.bookbuilder.model.ShapeItem
-import com.kdroid.seforim.database.bookbuilder.model.VerseResponse
-import com.kdroid.seforim.database.common.BASE_URL
+import com.kdroid.seforim.database.builders.book.api.fetchJsonFromApi
+import com.kdroid.seforim.database.builders.book.api.json
+import com.kdroid.seforim.database.builders.book.model.CommentItem
+import com.kdroid.seforim.database.builders.book.model.ShapeItem
+import com.kdroid.seforim.database.builders.book.model.VerseResponse
+import com.kdroid.seforim.database.common.constants.BASE_URL
+import com.kdroid.seforim.database.common.constants.GENERATED_FOLDER
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -134,7 +135,7 @@ internal suspend fun buildBookFromShape(bookTitle: String) {
             )
 
             // Save each verse in a separate file
-            val verseDir = File("generated/${bookTitle}/${chapterIndex + 1}")
+            val verseDir = File("$GENERATED_FOLDER/${bookTitle}/${chapterIndex + 1}")
             if (!verseDir.exists()) verseDir.mkdirs()
 
             val verseFile = File(verseDir, "$verseNumber.json")

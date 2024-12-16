@@ -1,4 +1,4 @@
-package com.kdroid.seforim.database.bookbuilder.util
+package com.kdroid.seforim.database.builders.book.util
 
 import org.slf4j.LoggerFactory
 
