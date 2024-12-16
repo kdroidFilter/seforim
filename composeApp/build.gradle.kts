@@ -39,6 +39,10 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtime.compose)
 
             implementation(libs.ktor.serialization.kotlinx.protobuf)
+
+            implementation("com.mohamedrejeb.richeditor:richeditor-compose:1.0.0-rc10")
+            implementation("be.digitalia.compose.htmlconverter:htmlconverter:1.0.2")
+
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs) {
@@ -59,6 +63,8 @@ kotlin {
             implementation(libs.jna)
             implementation(libs.jna.platform)
             implementation(libs.slf4j.simple)
+
+            implementation(libs.kotlinx.serialization.json)
 
 
             implementation(libs.jsystemthemedetector)

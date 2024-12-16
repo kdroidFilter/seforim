@@ -12,7 +12,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
-
 import seforim.composeapp.generated.resources.Res
 import seforim.composeapp.generated.resources.compose_multiplatform
 
