@@ -96,7 +96,6 @@ fun DisplayTree() {
         Box(
             Modifier
                 .fillMaxSize()
-                .padding(16.dp)
         ) {
             LazyTree(
                 tree = tree,

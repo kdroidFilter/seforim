@@ -33,9 +33,14 @@ fun createDirectoriesAndFilesWithIndex(rootPath: String, tree: List<TableOfConte
 
     fun processNode(currentPath: File, contents: List<ContentItem>?): DirectoryNode {
         val childrenNodes = contents?.map { item ->
-            val nodeName = item.title ?: item.category ?: "Untitled"
+            val nodeName = when {
+                !item.title.isNullOrBlank() -> item.title
+                !item.category.isNullOrBlank() -> item.category
+                else -> "Untitled"
+            }
+
             val nodePath = File(currentPath, nodeName)
-            val hebrewTitle = item.heTitle ?: "ללא כותרת"
+            val hebrewTitle = item.heTitle ?: item.heCategory
 
             if (nodePath.mkdirs()) {
                 logger.info("Directory created:  ${nodePath.path}")
@@ -62,7 +67,7 @@ fun createDirectoriesAndFilesWithIndex(rootPath: String, tree: List<TableOfConte
 
                 // Return a leaf node with a relative path
                 DirectoryNode(
-                    name = nodeName,
+                    name = nodeName ?: "Untitled",
                     path = toRelativePath(File(rootPath), nodePath),
                     children = emptyList(),
                     isLeaf = true,
@@ -73,7 +78,7 @@ fun createDirectoriesAndFilesWithIndex(rootPath: String, tree: List<TableOfConte
                 // Internal node: recursive processing
                 val childNode = processNode(nodePath, item.contents)
                 DirectoryNode(
-                    name = nodeName,
+                    name = nodeName ?: "Untitled",
                     path = toRelativePath(File(rootPath), nodePath),
                     children = childNode.children,
                     isLeaf = false,

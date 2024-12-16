@@ -55,7 +55,6 @@ fun main() {
                         TitleBarView()
                         Column(
                             Modifier.trackActivation().fillMaxSize().background(JewelTheme.globalColors.panelBackground)
-                                .padding(24.dp),
                         ) {
                             DisplayTree()
                         }
