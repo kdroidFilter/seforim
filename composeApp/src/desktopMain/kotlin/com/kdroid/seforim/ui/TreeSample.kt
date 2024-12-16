@@ -70,16 +70,12 @@ fun DisplayTree() {
     val layoutDirection = LocalLayoutDirection.current
 
     val treeIcons = remember(layoutDirection) {
-        if (layoutDirection == LayoutDirection.Rtl) {
             LazyTreeIcons(
                 chevronCollapsed = AllIconsKeys.General.ChevronLeft,
                 chevronExpanded = AllIconsKeys.General.ChevronDown,
                 chevronSelectedCollapsed = AllIconsKeys.General.ChevronLeft,
                 chevronSelectedExpanded = AllIconsKeys.General.ChevronDown,
             )
-        } else {
-            LazyTreeIcons.defaults()
-        }
     }
 
     val defaultTreeStyle = LazyTreeStyle(
