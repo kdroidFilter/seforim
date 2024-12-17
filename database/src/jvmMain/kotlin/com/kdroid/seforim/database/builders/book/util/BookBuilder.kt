@@ -2,39 +2,15 @@ package com.kdroid.seforim.database.builders.book.util
 
 import com.kdroid.seforim.core.model.*
 import com.kdroid.seforim.database.builders.book.api.fetchJsonFromApi
-import com.kdroid.seforim.database.builders.book.model.CommentItem
-import com.kdroid.seforim.database.builders.book.model.ComplexShapeItem
-import com.kdroid.seforim.database.builders.book.model.FlexibleShapeItem
-import com.kdroid.seforim.database.builders.book.model.ShapeItem
-import com.kdroid.seforim.database.builders.book.model.VerseResponse
+import com.kdroid.seforim.database.builders.book.model.*
 import com.kdroid.seforim.database.common.config.json
 import com.kdroid.seforim.database.common.constants.BASE_URL
-import com.kdroid.seforim.database.common.constants.GENERATED_FOLDER
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.*
 import java.io.File
-import kotlin.collections.List
-import kotlin.collections.MutableSet
 import kotlin.collections.component1
 import kotlin.collections.component2
-import kotlin.collections.emptyList
-import kotlin.collections.filter
-import kotlin.collections.firstOrNull
-import kotlin.collections.flatMap
-import kotlin.collections.forEach
-import kotlin.collections.forEachIndexed
-import kotlin.collections.groupBy
-import kotlin.collections.isNotEmpty
-import kotlin.collections.joinToString
-import kotlin.collections.listOfNotNull
-import kotlin.collections.mapIndexed
-import kotlin.collections.mapNotNull
-import kotlin.collections.mutableMapOf
-import kotlin.collections.mutableSetOf
 import kotlin.collections.set
-import kotlin.collections.sum
-import kotlin.collections.toList
-
 
 
 /**
@@ -161,7 +137,7 @@ internal suspend fun fetchCommentsForVerse(
 }
 
 
-internal suspend fun buildBookFromShape(bookTitle: String) {
+internal suspend fun buildBookFromShape(bookTitle: String, rootFolder: String) {
     val encodedTitle = bookTitle.replace(" ", "%20")
     logger.info("Fetching shape for book: $bookTitle")
     val shapeUrl = "$BASE_URL/shape/$encodedTitle"
@@ -172,18 +148,18 @@ internal suspend fun buildBookFromShape(bookTitle: String) {
     if (jsonElement.jsonArray.firstOrNull()?.jsonObject?.get("isComplex")?.jsonPrimitive?.boolean == true) {
         logger.info("Detected complex book structure for: $bookTitle")
         val complexBook = json.decodeFromString<List<ComplexShapeItem>>(shapeJson).first()
-        processComplexBook(complexBook)
+        processComplexBook(complexBook, rootFolder)
     } else {
         logger.info("Detected simple book structure for: $bookTitle")
         val simpleBooks = json.decodeFromString<List<FlexibleShapeItem>>(shapeJson)
         simpleBooks.forEach { shapeItem ->
             val item = shapeItem.toShapeItem(logger)
-            processSimpleBook(item)
+            processSimpleBook(item, rootFolder)
         }
     }
 }
 
-internal suspend fun processComplexBook(complexBook: ComplexShapeItem) {
+internal suspend fun processComplexBook(complexBook: ComplexShapeItem, rootFolder: String) {
     // Pour chaque élément dans complexBook.chapters, décoder en FlexibleShapeItem
     // Puis appeler toShapeItem() pour obtenir un ShapeItem standard.
     for (chapterElement in complexBook.chapters) {
@@ -195,7 +171,7 @@ internal suspend fun processComplexBook(complexBook: ComplexShapeItem) {
             // Décoder en FlexibleShapeItem
             val shapeItem = json.decodeFromJsonElement<FlexibleShapeItem>(chapterElement)
             val normalShape = shapeItem.toShapeItem(logger)
-            processSimpleBook(normalShape)
+            processSimpleBook(normalShape, rootFolder)
         } catch (e: Exception) {
             logger.info("Failed to process sub-book $title: ${e.message}")
             // Vous pouvez choisir de continuer ou de stopper le processus selon le besoin
@@ -204,7 +180,7 @@ internal suspend fun processComplexBook(complexBook: ComplexShapeItem) {
 }
 
 
-internal suspend fun processSimpleBook(shape: ShapeItem) {
+internal suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
     val totalVerses = shape.chapters.sum()
     var processedVerses = 0
     val bookTitle = shape.title
@@ -264,7 +240,7 @@ internal suspend fun processSimpleBook(shape: ShapeItem) {
                         otherLinks = comments.otherLinks
                     )
 
-                    saveVerse(bookTitle, chapterIndex + 1, verseIndex + 1, verse)
+                    saveVerse(bookTitle, chapterIndex + 1, verseIndex + 1, verse, rootFolder)
                     processedVerses++
                     logger.info("Processed verse ${chapterIndex + 1}:${verseIndex + 1}")
                 }
@@ -325,7 +301,7 @@ internal suspend fun processSimpleBook(shape: ShapeItem) {
                     otherLinks = comments.otherLinks
                 )
 
-                saveVerse(bookTitle, chapterIndex + 1, verseNumber, verse)
+                saveVerse(bookTitle, chapterIndex + 1, verseNumber, verse, rootFolder)
                 processedVerses++
                 val progress = (processedVerses.toDouble() / totalVerses * 100).toInt()
                 logger.info("Progress: $progress% ($processedVerses/$totalVerses verses)")
@@ -334,8 +310,8 @@ internal suspend fun processSimpleBook(shape: ShapeItem) {
     }
 }
 
-private fun saveVerse(bookTitle: String, chapter: Int, verseNumber: Int, verse: Verse) {
-    val verseDir = File("$GENERATED_FOLDER/$bookTitle/$chapter")
+private fun saveVerse(bookTitle: String, chapter: Int, verseNumber: Int, verse: Verse, rootFolder : String) {
+    val verseDir = File("$rootFolder/$bookTitle/$chapter")
     if (!verseDir.exists()) verseDir.mkdirs()
 
     val verseFile = File(verseDir, "$verseNumber.json")

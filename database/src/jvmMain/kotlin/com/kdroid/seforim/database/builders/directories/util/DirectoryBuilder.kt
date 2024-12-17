@@ -3,6 +3,7 @@ package com.kdroid.seforim.database.builders.directories.util
 import com.kdroid.seforim.core.model.ContentItem
 import com.kdroid.seforim.core.model.DirectoryNode
 import com.kdroid.seforim.core.model.TableOfContent
+import com.kdroid.seforim.database.builders.book.util.buildBookFromShape
 import com.kdroid.seforim.database.common.config.json
 
 import kotlinx.coroutines.runBlocking
@@ -47,22 +48,13 @@ fun createDirectoriesAndFilesWithIndex(rootPath: String, tree: List<TableOfConte
             }
 
             if (item.contents.isNullOrEmpty()) {
-                // Leaf node: create shape.json file
-                val shapeFilePath = File(nodePath, "shape.json")
+
+                // Leaf node: create the book
                 runBlocking {
-                    if (!shapeFilePath.exists()) {
-                        try {
-                            // val shapeJson = fetchJsonFromApi(nodeName, "shape")
-                            shapeFilePath.writeText("")
-                            logger.info("File created: ${shapeFilePath.path}")
-                        } catch (e: Exception) {
-                            logger.error("Unable to fetch or write shape.json for: ${nodePath.path}", e)
-                        }
-                    } else {
-                        logger.info("File already exists: ${shapeFilePath.path}")
+                    if (nodeName != null) {
+                        buildBookFromShape(nodeName, nodePath.parent)
                     }
                 }
-
                 // Return a leaf node with a relative path
                 DirectoryNode(
                     name = nodeName ?: "Untitled",
