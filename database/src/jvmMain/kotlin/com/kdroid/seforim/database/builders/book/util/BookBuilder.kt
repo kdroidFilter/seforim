@@ -2,15 +2,16 @@ package com.kdroid.seforim.database.builders.book.util
 
 import com.kdroid.seforim.core.model.*
 import com.kdroid.seforim.database.builders.book.api.fetchJsonFromApi
-import com.kdroid.seforim.database.common.config.json
 import com.kdroid.seforim.database.builders.book.model.CommentItem
+import com.kdroid.seforim.database.builders.book.model.ComplexShapeItem
+import com.kdroid.seforim.database.builders.book.model.FlexibleShapeItem
 import com.kdroid.seforim.database.builders.book.model.ShapeItem
 import com.kdroid.seforim.database.builders.book.model.VerseResponse
+import com.kdroid.seforim.database.common.config.json
 import com.kdroid.seforim.database.common.constants.BASE_URL
 import com.kdroid.seforim.database.common.constants.GENERATED_FOLDER
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.*
 import java.io.File
 import kotlin.collections.List
 import kotlin.collections.MutableSet
@@ -45,32 +46,76 @@ import kotlin.collections.toList
  * @param verse The verse number for which the comments are fetched.
  * @return A list of `Commentary` instances containing the commentator's name and their corresponding texts.
  */
-internal suspend fun fetchCommentsForVerse(bookTitle: String, chapter: Int, verse: Int): CommentaryResponse {
+internal suspend fun fetchCommentsForVerse(
+    bookTitle: String,
+    chapter: Int,
+    verse: Int,
+    shape: ShapeItem
+): CommentaryResponse {
     val formattedTitle = bookTitle.replace(" ", "%20")
-    val commentsUrl = "$BASE_URL/links/$formattedTitle.$chapter.$verse"
+    val commentsUrl = if (shape.length != 1) {
+        "$BASE_URL/links/$formattedTitle.$chapter.$verse"
+    } else {
+        "$BASE_URL/links/$formattedTitle"
+    }
     logger.debug("Fetching comments for $bookTitle chapter $chapter, verse $verse from: $commentsUrl")
 
     val commentsJson = fetchJsonFromApi(commentsUrl)
-    val commentsList = json.decodeFromString<List<CommentItem>>(commentsJson)
 
-    // On récupère la liste commune
+    // Tenter de parser le JSON en tant que JsonElement
+    val parsedJsonElement = try {
+        json.parseToJsonElement(commentsJson)
+    } catch (e: SerializationException) {
+        logger.info("Failed to parse JSON for comments from $commentsUrl: ${e.message}")
+        return CommentaryResponse(
+            commentary = emptyList(),
+            quotingCommentary = emptyList(),
+            reference = emptyList(),
+            otherLinks = emptyList()
+        )
+    }
+
+    // Vérifier si la réponse contient un champ "error"
+    if (parsedJsonElement is JsonObject && parsedJsonElement.containsKey("error")) {
+        val errorMsg = parsedJsonElement["error"]?.jsonPrimitive?.content
+        logger.info("Skipping comments for verse $chapter:$verse due to error: $errorMsg")
+        return CommentaryResponse(
+            commentary = emptyList(),
+            quotingCommentary = emptyList(),
+            reference = emptyList(),
+            otherLinks = emptyList()
+        )
+    }
+
+    // Tenter de désérialiser en List<CommentItem>
+    val commentsList: List<CommentItem> = try {
+        json.decodeFromString(commentsJson)
+    } catch (e: SerializationException) {
+        logger.info("Failed to deserialize comments for verse $chapter:$verse: ${e.message}")
+        return CommentaryResponse(
+            commentary = emptyList(),
+            quotingCommentary = emptyList(),
+            reference = emptyList(),
+            otherLinks = emptyList()
+        )
+    }
+
+    // On récupère la liste commune, uniquement avec le champ 'he'
     val allCommentaries = commentsList
         .groupBy { it.collectiveTitle.he ?: "Unknown" }
         .mapNotNull { (commentator, groupedComments) ->
-            val texts = groupedComments.flatMap { commentItem ->
+            val heTexts = groupedComments.flatMap { commentItem ->
                 listOfNotNull(
-                    when (commentItem.text) {
-                        else -> null
-                    },
-                    when (commentItem.he) {
-                        is JsonArray -> commentItem.he.joinToString(" ") { it.toString() }
-                        is JsonPrimitive -> commentItem.he.contentOrNull
+                    // Exclure le champ 'text' et ne traiter que 'he'
+                    when (val he = commentItem.he) {
+                        is JsonArray -> he.joinToString(" ") { it.jsonPrimitive.content }
+                        is JsonPrimitive -> he.contentOrNull
                         else -> null
                     }
                 ).filter { it.isNotEmpty() }
             }
 
-            if (texts.isNotEmpty()) {
+            if (heTexts.isNotEmpty()) {
                 val firstCategory = groupedComments.firstOrNull()?.category ?: ""
                 val commentaryType = when (firstCategory.lowercase()) {
                     "commentary" -> "COMMENTARY"
@@ -82,31 +127,31 @@ internal suspend fun fetchCommentsForVerse(bookTitle: String, chapter: Int, vers
                 when (commentaryType) {
                     "COMMENTARY" -> Commentary(
                         commentatorName = commentator,
-                        texts = texts
+                        texts = heTexts
                     )
                     "QUOTING_COMMENTARY" -> QuotingCommentary(
                         commentatorName = commentator,
-                        texts = texts
+                        texts = heTexts
                     )
                     "REFERENCE" -> Reference(
                         commentatorName = commentator,
-                        texts = texts
+                        texts = heTexts
                     )
                     else -> OtherLinks(
                         commentatorName = commentator,
-                        texts = texts
+                        texts = heTexts
                     )
                 }
             } else null
         }
 
-    // Maintenant on répartit par type :
+    // Répartir par type
     val commentaryList = allCommentaries.filterIsInstance<Commentary>()
     val quotingList = allCommentaries.filterIsInstance<QuotingCommentary>()
     val referenceList = allCommentaries.filterIsInstance<Reference>()
     val otherList = allCommentaries.filterIsInstance<OtherLinks>()
 
-    // On retourne un objet structuré
+    // Retourner un objet structuré
     return CommentaryResponse(
         commentary = commentaryList,
         quotingCommentary = quotingList,
@@ -115,103 +160,184 @@ internal suspend fun fetchCommentsForVerse(bookTitle: String, chapter: Int, vers
     )
 }
 
-/**
- * Builds and organizes the hierarchical structure of a book from its associated shape data,
- * processing chapters, verses, and their related commentaries. Saves the results into a
- * file structure and generates an index file for the book.
- *
- * @param bookTitle The title of the book to be built and processed.
- */
+
 internal suspend fun buildBookFromShape(bookTitle: String) {
     val encodedTitle = bookTitle.replace(" ", "%20")
-    logger.info("Building book from shape for title: $bookTitle")
-    val shapeUrl = "$BASE_URL/shape/${encodedTitle}"
-    logger.debug("Fetching shape from: $shapeUrl")
+    logger.info("Fetching shape for book: $bookTitle")
+    val shapeUrl = "$BASE_URL/shape/$encodedTitle"
     val shapeJson = fetchJsonFromApi(shapeUrl)
 
-    logger.debug("Decoding shape JSON for $bookTitle")
-    val shapeList = json.decodeFromString<List<ShapeItem>>(shapeJson)
-    val shape = shapeList.firstOrNull { it.title == bookTitle }
-        ?: throw IllegalStateException("No shape found for the book $bookTitle")
+    val jsonElement = json.parseToJsonElement(shapeJson)
 
-    logger.info("Shape found for $bookTitle: ${shape.book}")
-
-    val totalVerses = shape.chapters.sum()
-    var processedVerses = 0
-
-    // Preparing the structure for the index
-    // For each chapter, we will store:
-    // - a set of commentators (to avoid duplicates)
-    val chapterCommentators = mutableMapOf<Int, MutableSet<String>>()
-    shape.chapters.forEachIndexed { chapterIndex, nbVerses ->
-        chapterCommentators[chapterIndex] = mutableSetOf()  // Initialize the set
-
-        logger.info("Processing chapter ${chapterIndex + 1} with $nbVerses verses")
-        (1..nbVerses).forEach { verseNumber ->
-            val endpointTitle = shape.title.replace(" ", "%20")
-            val textUrl = "$BASE_URL/v3/texts/$endpointTitle ${chapterIndex + 1}.$verseNumber"
-            val verseJson = fetchJsonFromApi(textUrl)
-            val verseResponse = json.decodeFromString<VerseResponse>(verseJson)
-
-            val verseText = verseResponse.versions.firstOrNull()?.text ?: ""
-            logger.debug("Verse ${chapterIndex + 1}:$verseNumber text: ${verseText.take(50)}...")
-
-            // Adding comments
-            val comments = fetchCommentsForVerse(shape.title.replace(" ", "%20"), chapterIndex + 1, verseNumber)
-
-            // Add the names of commentators found in this verse to the chapter's set
-            comments.commentary.forEach { commentary ->
-                chapterCommentators[chapterIndex]?.add(commentary.commentatorName)
-            }
-
-            val verse = Verse(
-                number = verseNumber,
-                text = verseText,
-                commentary = comments.commentary,
-                quotingCommentary = comments.quotingCommentary,
-                reference = comments.reference,
-                otherLinks = comments.otherLinks
-            )
-
-            // Save each verse in a separate file
-            val verseDir = File("$GENERATED_FOLDER/${bookTitle}/${chapterIndex + 1}")
-            if (!verseDir.exists()) verseDir.mkdirs()
-
-            val verseFile = File(verseDir, "$verseNumber.json")
-            verseFile.writeText(json.encodeToString(verse))
-
-            // Update progress
-            processedVerses++
-            val progress = (processedVerses.toDouble() / totalVerses * 100).toInt()
-            logger.info("Progress: $progress% ($processedVerses/$totalVerses verses processed)")
+    if (jsonElement.jsonArray.firstOrNull()?.jsonObject?.get("isComplex")?.jsonPrimitive?.boolean == true) {
+        logger.info("Detected complex book structure for: $bookTitle")
+        val complexBook = json.decodeFromString<List<ComplexShapeItem>>(shapeJson).first()
+        processComplexBook(complexBook)
+    } else {
+        logger.info("Detected simple book structure for: $bookTitle")
+        val simpleBooks = json.decodeFromString<List<FlexibleShapeItem>>(shapeJson)
+        simpleBooks.forEach { shapeItem ->
+            val item = shapeItem.toShapeItem(logger)
+            processSimpleBook(item)
         }
     }
+}
 
-    logger.info("Book $bookTitle has been saved hierarchically by chapters and verses.")
+internal suspend fun processComplexBook(complexBook: ComplexShapeItem) {
+    // Pour chaque élément dans complexBook.chapters, décoder en FlexibleShapeItem
+    // Puis appeler toShapeItem() pour obtenir un ShapeItem standard.
+    for (chapterElement in complexBook.chapters) {
+        val obj = chapterElement.jsonObject
+        val title = obj["title"]?.jsonPrimitive?.content ?: "Unknown"
+        logger.info("Processing sub-book: $title")
 
-    // Once finished, build the global index
-    val chaptersIndexList = shape.chapters.mapIndexed { chapterIndex, nbVerses ->
-        ChapterIndex(
-            chapterNumber = chapterIndex + 1,
-            numberOfVerses = nbVerses,
-            commentators = chapterCommentators[chapterIndex]?.toList() ?: emptyList()
-        )
+        try {
+            // Décoder en FlexibleShapeItem
+            val shapeItem = json.decodeFromJsonElement<FlexibleShapeItem>(chapterElement)
+            val normalShape = shapeItem.toShapeItem(logger)
+            processSimpleBook(normalShape)
+        } catch (e: Exception) {
+            logger.info("Failed to process sub-book $title: ${e.message}")
+            // Vous pouvez choisir de continuer ou de stopper le processus selon le besoin
+        }
     }
-
-    val bookIndex = BookIndex(
-        title = bookTitle,
-        heTitle = shape.heBook,
-        numberOfChapters = shape.chapters.size,
-        chapters = chaptersIndexList
-    )
-
-    // Write the index to an index.json file
-    val indexFile = File("generated/${bookTitle}/index.json")
-    if (!indexFile.parentFile.exists()) indexFile.parentFile.mkdirs()
-    indexFile.writeText(json.encodeToString(bookIndex))
-
-    logger.info("Index file for $bookTitle has been created: ${indexFile.absolutePath}")
 }
 
 
+internal suspend fun processSimpleBook(shape: ShapeItem) {
+    val totalVerses = shape.chapters.sum()
+    var processedVerses = 0
+    val bookTitle = shape.title
 
+    logger.info("Processing book: ${shape.title}")
+
+    val chapterCommentators = mutableMapOf<Int, MutableSet<String>>()
+
+    shape.chapters.forEachIndexed { chapterIndex, nbVerses ->
+        chapterCommentators[chapterIndex] = mutableSetOf()
+        logger.info("Processing chapter ${chapterIndex + 1} with $nbVerses verses")
+
+        if (shape.length == 1) {
+            // Cas spécial : length == 1, fetcher le texte sans ajouter "1.1"
+            val endpointTitle = shape.title.replace(" ", "%20")
+            val textUrl = "$BASE_URL/v3/texts/$endpointTitle"
+            val verseJson = fetchJsonFromApi(textUrl)
+
+            // Vérification des erreurs
+            val parsedJson = try {
+                json.parseToJsonElement(verseJson).jsonObject
+            } catch (e: SerializationException) {
+                logger.info("Failed to parse JSON for book ${shape.title}: ${e.message}")
+                return@forEachIndexed
+            }
+
+            if (parsedJson.containsKey("error")) {
+                val errorMsg = parsedJson["error"]?.jsonPrimitive?.content
+                logger.info("Skipping book ${shape.title} due to error: $errorMsg")
+                return@forEachIndexed
+            }
+
+            // Récupération des versets directement depuis le tableau "text"
+            val textArray = parsedJson["versions"]?.jsonArray?.firstOrNull()
+                ?.jsonObject?.get("text")?.jsonArray
+
+            if (textArray != null) {
+                textArray.forEachIndexed { verseIndex, verseContent ->
+                    val verseText = when (verseContent) {
+                        is JsonPrimitive -> verseContent.content
+                        is JsonArray -> verseContent.jsonArray.joinToString(" ") { it.jsonPrimitive.content }
+                        else -> ""
+                    }
+
+                    val comments = fetchCommentsForVerse(endpointTitle, chapterIndex + 1, verseIndex + 1, shape = shape)
+
+                    comments.commentary.forEach { commentary ->
+                        chapterCommentators[chapterIndex]?.add(commentary.commentatorName)
+                    }
+
+                    val verse = Verse(
+                        number = verseIndex + 1,
+                        text = verseText,
+                        commentary = comments.commentary,
+                        quotingCommentary = comments.quotingCommentary,
+                        reference = comments.reference,
+                        otherLinks = comments.otherLinks
+                    )
+
+                    saveVerse(bookTitle, chapterIndex + 1, verseIndex + 1, verse)
+                    processedVerses++
+                    logger.info("Processed verse ${chapterIndex + 1}:${verseIndex + 1}")
+                }
+            } else {
+                logger.info("No text found for book ${shape.title}")
+            }
+        } else {
+            // Cas standard : plusieurs chapitres et versets
+            if (nbVerses == 0) {
+                logger.info("Chapter ${chapterIndex + 1} has 0 verses, skipping.")
+                return@forEachIndexed
+            }
+
+            (1..nbVerses).forEach { verseNumber ->
+                val endpointTitle = shape.title.replace(" ", "%20")
+                val textUrl = "$BASE_URL/v3/texts/$endpointTitle ${chapterIndex + 1}.$verseNumber"
+                val verseJson = fetchJsonFromApi(textUrl)
+
+                // Vérification des erreurs
+                val parsedJson = try {
+                    json.parseToJsonElement(verseJson)
+                } catch (e: SerializationException) {
+                    logger.info("Failed to parse JSON for verse ${chapterIndex + 1}:$verseNumber: ${e.message}")
+                    return@forEach
+                }
+
+                if (parsedJson is JsonObject && parsedJson.containsKey("error")) {
+                    val errorMsg = parsedJson["error"]?.jsonPrimitive?.content
+                    logger.info("Skipping verse ${chapterIndex + 1}:$verseNumber due to error: $errorMsg")
+                    return@forEach
+                }
+
+                val verseResponse = try {
+                    json.decodeFromString<VerseResponse>(verseJson)
+                } catch (e: SerializationException) {
+                    logger.info("Failed to deserialize VerseResponse for verse ${chapterIndex + 1}:$verseNumber: ${e.message}")
+                    return@forEach
+                }
+
+                val verseText = when (val textElement = verseResponse.versions.firstOrNull()?.text) {
+                    is JsonPrimitive -> textElement.content
+                    is JsonArray -> textElement.jsonArray.joinToString(" ") { it.jsonPrimitive.content }
+                    else -> ""
+                }
+
+                val comments = fetchCommentsForVerse(endpointTitle, chapterIndex + 1, verseNumber, shape = shape)
+
+                comments.commentary.forEach { commentary ->
+                    chapterCommentators[chapterIndex]?.add(commentary.commentatorName)
+                }
+
+                val verse = Verse(
+                    number = verseNumber,
+                    text = verseText,
+                    commentary = comments.commentary,
+                    quotingCommentary = comments.quotingCommentary,
+                    reference = comments.reference,
+                    otherLinks = comments.otherLinks
+                )
+
+                saveVerse(bookTitle, chapterIndex + 1, verseNumber, verse)
+                processedVerses++
+                val progress = (processedVerses.toDouble() / totalVerses * 100).toInt()
+                logger.info("Progress: $progress% ($processedVerses/$totalVerses verses)")
+            }
+        }
+    }
+}
+
+private fun saveVerse(bookTitle: String, chapter: Int, verseNumber: Int, verse: Verse) {
+    val verseDir = File("$GENERATED_FOLDER/$bookTitle/$chapter")
+    if (!verseDir.exists()) verseDir.mkdirs()
+
+    val verseFile = File(verseDir, "$verseNumber.json")
+    verseFile.writeText(json.encodeToString(verse))
+}

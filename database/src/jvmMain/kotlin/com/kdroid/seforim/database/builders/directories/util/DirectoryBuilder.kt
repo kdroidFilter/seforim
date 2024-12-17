@@ -5,11 +5,9 @@ import com.kdroid.seforim.core.model.DirectoryNode
 import com.kdroid.seforim.core.model.TableOfContent
 import com.kdroid.seforim.database.common.config.json
 
-import com.kdroid.seforim.database.common.filesutils.saveToProtobuf
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
 import java.io.File
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.protobuf.ProtoBuf
 import org.slf4j.LoggerFactory

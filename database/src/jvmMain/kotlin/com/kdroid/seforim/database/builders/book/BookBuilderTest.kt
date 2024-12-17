@@ -4,7 +4,7 @@ import com.kdroid.seforim.database.builders.book.util.buildBookFromShape
 import com.kdroid.seforim.database.builders.book.util.logger
 
 suspend fun main() {
-    val bookTitle = "Obadiah"
+    val bookTitle = "Tur"
     logger.info("Starting to build book: $bookTitle")
     buildBookFromShape(bookTitle)
 }
