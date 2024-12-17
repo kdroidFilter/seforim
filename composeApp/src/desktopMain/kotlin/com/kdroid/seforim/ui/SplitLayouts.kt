@@ -6,10 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
-import com.kdroid.seforim.ui.DefaultTabShowcase
-import com.kdroid.seforim.ui.DisplayTree
-import com.kdroid.seforim.ui.VerseScreen
-import com.kdroid.seforim.ui.loadVerse
+import com.kdroid.seforim.ui.*
 import org.jetbrains.compose.splitpane.ExperimentalSplitPaneApi
 import org.jetbrains.compose.splitpane.HorizontalSplitPane
 import org.jetbrains.compose.splitpane.rememberSplitPaneState
@@ -56,7 +53,8 @@ fun SplitLayouts() {
                 }
             }
             second(50.dp) {
-                VerseScreen(loadVerse())
+                val bookIndex = loadBookIndex("Obadiah")
+                BookViewScreen(bookIndex = bookIndex)
             }
             splitter {
                 visiblePart {

@@ -1,10 +1,14 @@
 package com.kdroid.seforim.ui
 
+import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -15,37 +19,158 @@ import com.kdroid.seforim.core.model.BookIndex
 import com.kdroid.seforim.core.model.CommentaryBase
 import com.kdroid.seforim.core.model.Verse
 import kotlinx.serialization.json.Json
+import org.jetbrains.jewel.foundation.lazy.SelectableLazyColumn
+import org.jetbrains.jewel.foundation.lazy.SelectionMode
+import org.jetbrains.jewel.foundation.lazy.rememberSelectableLazyListState
+import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.VerticalScrollbar
 import seforim.composeapp.generated.resources.`Guttman David_Bold`
 import seforim.composeapp.generated.resources.Res
 import java.io.File
 
-fun loadVerse(): Verse {
-    val path = "/home/elyahou/IdeaProjects/seforim/database/generated/Obadiah/1/1.json"
+fun loadBookIndex(bookTitle: String): BookIndex {
+    val path = "/home/elyahou/IdeaProjects/seforim/database/generated/$bookTitle/index.json"
     val file = File(path)
-    val verseJson = file.readText()
-    return Json.decodeFromString<Verse>(verseJson)
+    val indexJson = file.readText()
+    return Json.decodeFromString<BookIndex>(indexJson)
 }
 
 @Composable
-fun BookIndexScreen(bookIndex: BookIndex) {
-    // Affiche le titre, le nombre de chapitres, etc.
-    Column(
-        modifier = Modifier.padding(16.dp)
-    ) {
-        Text("Titre: ${bookIndex.title}")
-        Text("Hébreu: ${bookIndex.heTitle}")
-        Text("Chapitres: ${bookIndex.numberOfChapters}")
+fun BookViewScreen(bookIndex: BookIndex) {
+    // Default states for the selected chapter and verse
+    val defaultChapter = 1
+    val defaultVerse = 1
+    var currentChapter by remember { mutableStateOf(defaultChapter) }
+    var currentVerse by remember { mutableStateOf(defaultVerse) }
 
-        bookIndex.chapters.forEach { chapterIndex ->
-            Text("Chapitre ${chapterIndex.chapterNumber}: ${chapterIndex.numberOfVerses} versets")
-            if (chapterIndex.commentators.isNotEmpty()) {
-                Text("Commentateurs : ${chapterIndex.commentators.joinToString(", ")}")
+    // Load data for the current verse
+    val currentVerseData by produceState<Verse?>(initialValue = null, currentChapter, currentVerse) {
+        value = loadVerse(bookIndex.title, currentChapter, currentVerse)
+    }
+
+    // List of chapters
+    val chapters = remember(bookIndex) {
+        bookIndex.chapters.map { it.chapterNumber }
+    }
+
+    // List of verses for the selected chapter
+    val verses = remember(currentChapter, bookIndex) {
+        bookIndex.chapters
+            .firstOrNull { it.chapterNumber == currentChapter }
+            ?.let { chapter -> (1..chapter.numberOfVerses).map { it } }
+            ?: emptyList()
+    }
+
+    // States for the two SelectableLazyColumns
+    val chapterListState = rememberSelectableLazyListState()
+    val verseListState = rememberSelectableLazyListState()
+
+    Row(modifier = Modifier.fillMaxSize()) {
+        // Left column for chapters and verses
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(8.dp)
+        ) {
+            // First SelectableLazyColumn: List of chapters
+            Text("פרקים", fontSize = 12.sp, modifier = Modifier)
+            SelectableLazyColumn(
+                selectionMode = SelectionMode.Single,
+                state = chapterListState,
+                onSelectedIndexesChange = { selectedIndexes ->
+                    selectedIndexes.firstOrNull()?.let { index ->
+                        currentChapter = chapters[index]
+                        currentVerse = 1 // Reset verse to 1
+                    }
+                },
+                contentPadding = PaddingValues(8.dp),
+                content = {
+                    items(
+                        count = chapters.size,
+                        key = { index -> "chapter_${chapters[index]}" }
+                    ) { index ->
+                        val chapterNumber = chapters[index]
+                        val isSelected = chapterNumber == currentChapter
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    if (isSelected) JewelTheme.globalColors.outlines.focused else Color.Transparent
+                                )
+                                .padding(8.dp)
+                        ) {
+                            Text(
+                                text = "פרק $chapterNumber",
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            )
+
+
+            // Second SelectableLazyColumn: List of verses
+            Text("פסוקים", fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+            SelectableLazyColumn(
+                selectionMode = SelectionMode.Single,
+                state = verseListState,
+                onSelectedIndexesChange = { selectedIndexes ->
+                    selectedIndexes.firstOrNull()?.let { index ->
+                        currentVerse = verses[index]
+                    }
+                },
+                contentPadding = PaddingValues(8.dp),
+                content = {
+                    items(
+                        count = verses.size,
+                        key = { index -> "chapter_${currentChapter}_verse_${verses[index]}" }
+                    ) { index ->
+                        val verseNumber = verses[index]
+                        val isSelected = verseNumber == currentVerse
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    if (isSelected) JewelTheme.globalColors.outlines.focused else Color.Transparent
+                                )
+                                .padding(8.dp)
+                        ) {
+                            Text(
+                                text = "פסוק $verseNumber",
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                }
+            )
+        }
+
+        // Right column to display the selected verse
+        Column(
+            modifier = Modifier
+                .weight(3f)
+                .fillMaxHeight()
+                .padding(16.dp)
+        ) {
+            currentVerseData?.let { verse ->
+                VerseScreen(verse)
+            } ?: run {
+                Text("טעינה את הפסוק...")
             }
         }
     }
 }
 
+// Example implementation of loadVerse
+fun loadVerse(bookTitle: String, chapter: Int, verse: Int): Verse {
+    val path = "/home/elyahou/IdeaProjects/seforim/database/generated/$bookTitle/$chapter/$verse.json"
+    val file = File(path)
+    val verseJson = file.readText()
+    return Json.decodeFromString<Verse>(verseJson)
+}
 
 @Composable
 fun VerseScreen(verse: Verse) {
@@ -56,7 +181,7 @@ fun VerseScreen(verse: Verse) {
     ) {
         item {
             Text(
-                verse.text,
+                verse.text, // Hebrew text
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
@@ -65,32 +190,25 @@ fun VerseScreen(verse: Verse) {
             )
         }
 
-        // Titre général des commentaires
-        item {
-            Spacer(Modifier.height(16.dp))
-            Text("פירושים :", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Spacer(Modifier.height(8.dp))
-        }
-
-        // Fonction interne pour factoriser l’affichage d’un bloc de commentaires
+        // Internal function to display a block of commentaries
         fun <T : CommentaryBase> displayCommentSection(
             title: String,
             commentList: List<T>
         ) {
             if (commentList.isNotEmpty()) {
-                // Affiche le titre de la section
+                // Display the section title
                 item {
                     Spacer(Modifier.height(12.dp))
                     Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     Spacer(Modifier.height(8.dp))
                 }
-                // Affiche chaque commentaire de cette section
+                // Display each commentary in this section
                 commentList.forEach { commentary ->
                     item {
                         Text("— ${commentary.commentatorName}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         commentary.texts.forEach { text ->
                             Text(
-                                text = remember(text) { htmlToAnnotatedString(text) },
+                                text = remember(text) { htmlToAnnotatedString(text) }, // Translated to English
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Justify,
                                 fontSize = 13.sp
@@ -102,10 +220,10 @@ fun VerseScreen(verse: Verse) {
             }
         }
 
-        // Affichage des différentes catégories de commentaires
-        displayCommentSection("Commentary", verse.commentary)
-        displayCommentSection("Quoting Commentary", verse.quotingCommentary)
-        displayCommentSection("Reference", verse.reference)
-        displayCommentSection("Other Links", verse.otherLinks)
+        // Display different categories of commentaries
+        displayCommentSection("פירושים", verse.commentary)
+        displayCommentSection("פירושים צדדים", verse.quotingCommentary)
+        displayCommentSection("מקורות", verse.reference)
+        displayCommentSection("קישורים אחרים", verse.otherLinks)
     }
 }
