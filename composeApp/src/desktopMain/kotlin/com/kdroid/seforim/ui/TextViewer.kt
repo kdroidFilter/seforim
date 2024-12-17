@@ -36,6 +36,7 @@ fun loadBookIndex(bookTitle: String): BookIndex {
     return Json.decodeFromString<BookIndex>(indexJson)
 }
 
+
 @Composable
 fun BookViewScreen(bookIndex: BookIndex) {
     // Default states for the selected chapter and verse
