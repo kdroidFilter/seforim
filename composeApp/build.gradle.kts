@@ -40,8 +40,8 @@ kotlin {
 
             implementation(libs.ktor.serialization.kotlinx.protobuf)
 
-            implementation("com.mohamedrejeb.richeditor:richeditor-compose:1.0.0-rc10")
-            implementation("be.digitalia.compose.htmlconverter:htmlconverter:1.0.2")
+            implementation(libs.htmlconverter)
+            implementation(libs.hebrewnumerals)
 
         }
         desktopMain.dependencies {

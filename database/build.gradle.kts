@@ -21,6 +21,8 @@ kotlin {
             implementation(libs.jewel.foundation)
             implementation(libs.zstd.jni)
 
+            implementation(libs.hebrewnumerals)
+
         }
     }
 }

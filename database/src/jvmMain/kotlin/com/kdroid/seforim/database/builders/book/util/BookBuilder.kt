@@ -29,10 +29,10 @@ internal suspend fun fetchCommentsForVerse(
     shape: ShapeItem
 ): CommentaryResponse {
     val formattedTitle = bookTitle.replace(" ", "%20")
-    val commentsUrl = if (shape.length != 1) {
-        "$BASE_URL/links/$formattedTitle.$chapter.$verse"
-    } else {
+    val commentsUrl = if (shape.length == 1 && shape.title.contains("Introduction")) {
         "$BASE_URL/links/$formattedTitle"
+    } else {
+        "$BASE_URL/links/$formattedTitle.$chapter.$verse"
     }
     logger.debug("Fetching comments for $bookTitle chapter $chapter, verse $verse from: $commentsUrl")
 
@@ -193,7 +193,7 @@ internal suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
         chapterCommentators[chapterIndex] = mutableSetOf()
         logger.info("Processing chapter ${chapterIndex + 1} with $nbVerses verses")
 
-        if (shape.length == 1) {
+        if (shape.length == 1 && shape.title.contains("Introduction")) {
             // Cas spécial : length == 1, fetcher le texte sans ajouter "1.1"
             val endpointTitle = shape.title.replace(" ", "%20")
             val textUrl = "$BASE_URL/v3/texts/$endpointTitle"
@@ -308,6 +308,28 @@ internal suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
             }
         }
     }
+
+    //Creer l'index du livre
+    val chaptersIndexList = shape.chapters.mapIndexed { chapterIndex, nbVerses ->
+        ChapterIndex(
+            chapterNumber = chapterIndex + 1,
+            numberOfVerses = nbVerses,
+            commentators = chapterCommentators[chapterIndex]?.toList() ?: emptyList()
+        )
+    }
+
+    val bookIndex = BookIndex(
+        title = shape.title,
+        heTitle = shape.heBook,
+        numberOfChapters = shape.chapters.size,
+        chapters = chaptersIndexList
+    )
+
+    val indexFile = File("$rootFolder/$bookTitle/index.json")
+    if (!indexFile.parentFile.exists()) indexFile.parentFile.mkdirs()
+    indexFile.writeText(json.encodeToString(bookIndex))
+
+    logger.info("Index file created for $bookTitle: ${indexFile.absolutePath}")
 }
 
 private fun saveVerse(bookTitle: String, chapter: Int, verseNumber: Int, verse: Verse, rootFolder : String) {

@@ -1,12 +1,9 @@
 package com.kdroid.seforim.ui
 
-import androidx.compose.foundation.*
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -14,7 +11,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import be.digitalia.compose.htmlconverter.htmlToAnnotatedString
+import be.digitalia.compose.htmlconverter.htmlToString
+import com.kdroid.gematria.converter.toHebrewNumeral
 import com.kdroid.seforim.core.model.BookIndex
 import com.kdroid.seforim.core.model.CommentaryBase
 import com.kdroid.seforim.core.model.Verse
@@ -24,13 +22,12 @@ import org.jetbrains.jewel.foundation.lazy.SelectionMode
 import org.jetbrains.jewel.foundation.lazy.rememberSelectableLazyListState
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.component.VerticalScrollbar
 import seforim.composeapp.generated.resources.`Guttman David_Bold`
 import seforim.composeapp.generated.resources.Res
 import java.io.File
 
 fun loadBookIndex(bookTitle: String): BookIndex {
-    val path = "/home/elyahou/IdeaProjects/seforim/database/generated/$bookTitle/index.json"
+    val path = "../database/generated/$bookTitle/index.json"
     val file = File(path)
     val indexJson = file.readText()
     return Json.decodeFromString<BookIndex>(indexJson)
@@ -103,7 +100,7 @@ fun BookViewScreen(bookIndex: BookIndex) {
                                 .padding(8.dp)
                         ) {
                             Text(
-                                text = "פרק $chapterNumber",
+                                text = "פרק ${chapterNumber.toHebrewNumeral()}",
                                 fontSize = 12.sp
                             )
                         }
@@ -140,7 +137,7 @@ fun BookViewScreen(bookIndex: BookIndex) {
                                 .padding(8.dp)
                         ) {
                             Text(
-                                text = "פסוק $verseNumber",
+                                text = "פסוק ${verseNumber.toHebrewNumeral()}",
                                 fontSize = 10.sp
                             )
                         }
@@ -167,7 +164,7 @@ fun BookViewScreen(bookIndex: BookIndex) {
 
 // Example implementation of loadVerse
 fun loadVerse(bookTitle: String, chapter: Int, verse: Int): Verse {
-    val path = "/home/elyahou/IdeaProjects/seforim/database/generated/$bookTitle/$chapter/$verse.json"
+    val path = "../database/generated/$bookTitle/$chapter/$verse.json"
     val file = File(path)
     val verseJson = file.readText()
     return Json.decodeFromString<Verse>(verseJson)
@@ -182,7 +179,7 @@ fun VerseScreen(verse: Verse) {
     ) {
         item {
             Text(
-                verse.text, // Hebrew text
+                htmlToString(verse.text),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
@@ -209,7 +206,7 @@ fun VerseScreen(verse: Verse) {
                         Text("— ${commentary.commentatorName}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         commentary.texts.forEach { text ->
                             Text(
-                                text = remember(text) { htmlToAnnotatedString(text) }, // Translated to English
+                                text = htmlToString(text),
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Justify,
                                 fontSize = 13.sp
