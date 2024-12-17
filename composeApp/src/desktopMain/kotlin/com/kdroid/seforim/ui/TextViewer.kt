@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import be.digitalia.compose.htmlconverter.htmlToAnnotatedString
 import com.kdroid.seforim.core.model.BookIndex
+import com.kdroid.seforim.core.model.CommentaryBase
 import com.kdroid.seforim.core.model.Verse
 import kotlinx.serialization.json.Json
 import org.jetbrains.jewel.ui.component.Text
@@ -54,30 +55,57 @@ fun VerseScreen(verse: Verse) {
         modifier = Modifier.padding(16.dp)
     ) {
         item {
-            Text(verse.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, fontFamily = fontAwesome, lineHeight = 22.sp)
+            Text(
+                verse.text,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                fontFamily = fontAwesome,
+                lineHeight = 22.sp
+            )
         }
 
+        // Titre général des commentaires
         item {
-            Text("פירושים :")
-
+            Spacer(Modifier.height(16.dp))
+            Text("פירושים :", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Spacer(Modifier.height(8.dp))
         }
-        // Afficher les commentaires en grille par exemple
-        // Compose for Desktop supporte LazyVerticalGrid via des bibliothèques tierces,
-        // ou vous pouvez bricoler une simple grille avec des Row/Column dynamiques.
-        // Ici on fait simple, juste une liste :
-        verse.commentaries.forEach { commentary ->
 
-            item { Text("— ${commentary.commentatorName}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            commentary.texts.forEach { text ->
-                    Text(
-                        text = remember(text) { htmlToAnnotatedString(text) },
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Justify,
-                        fontSize = 13.sp
-                    )
-                    Spacer(Modifier.height(10.dp))
+        // Fonction interne pour factoriser l’affichage d’un bloc de commentaires
+        fun <T : CommentaryBase> displayCommentSection(
+            title: String,
+            commentList: List<T>
+        ) {
+            if (commentList.isNotEmpty()) {
+                // Affiche le titre de la section
+                item {
+                    Spacer(Modifier.height(12.dp))
+                    Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Spacer(Modifier.height(8.dp))
+                }
+                // Affiche chaque commentaire de cette section
+                commentList.forEach { commentary ->
+                    item {
+                        Text("— ${commentary.commentatorName}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        commentary.texts.forEach { text ->
+                            Text(
+                                text = remember(text) { htmlToAnnotatedString(text) },
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Justify,
+                                fontSize = 13.sp
+                            )
+                            Spacer(Modifier.height(10.dp))
+                        }
+                    }
                 }
             }
         }
+
+        // Affichage des différentes catégories de commentaires
+        displayCommentSection("Commentary", verse.commentary)
+        displayCommentSection("Quoting Commentary", verse.quotingCommentary)
+        displayCommentSection("Reference", verse.reference)
+        displayCommentSection("Other Links", verse.otherLinks)
     }
 }
