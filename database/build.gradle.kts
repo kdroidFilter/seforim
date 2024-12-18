@@ -18,7 +18,6 @@ kotlin {
             implementation(libs.ktor.serialization.kotlinx.protobuf)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.slf4j.simple)
-            implementation(libs.jewel.foundation)
             implementation(libs.zstd.jni)
 
             implementation(libs.hebrewnumerals)
