@@ -1,4 +1,4 @@
-package com.kdroid.seforim.database.builders.tableofcontent.api
+package com.kdroid.seforim.database.builders.sefaria.tableofcontent
 
 import com.kdroid.seforim.core.model.TableOfContent
 import com.kdroid.seforim.database.common.constants.BASE_URL

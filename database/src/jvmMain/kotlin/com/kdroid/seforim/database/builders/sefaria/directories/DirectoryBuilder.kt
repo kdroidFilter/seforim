@@ -1,9 +1,9 @@
-package com.kdroid.seforim.database.builders.directories.util
+package com.kdroid.seforim.database.builders.sefaria.directories
 
 import com.kdroid.seforim.core.model.ContentItem
 import com.kdroid.seforim.core.model.DirectoryNode
 import com.kdroid.seforim.core.model.TableOfContent
-import com.kdroid.seforim.database.builders.book.util.buildBookFromShape
+import com.kdroid.seforim.database.builders.sefaria.book.util.buildBookFromShape
 import com.kdroid.seforim.database.common.config.json
 import com.kdroid.seforim.database.common.constants.BLACKLIST
 

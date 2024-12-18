@@ -1,4 +1,4 @@
-package com.kdroid.seforim.database.builders.book.model
+package com.kdroid.seforim.database.builders.sefaria.book.model
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
@@ -44,14 +44,14 @@ internal data class FlexibleShapeItem(
                         is JsonPrimitive -> {
                             val chapterCount = element.intOrNull
                             if (chapterCount == null) {
-                                logger.debug("Élément de chapitre non entier: $element")
+                                logger.debug("Élément de chapitre non entier: {}", element)
                             }
                             chapterCount
                         }
                         is JsonArray -> {
                             val sum = element.jsonArray.mapNotNull { it.jsonPrimitive.intOrNull }.sum()
                             if (sum == 0) {
-                                logger.debug("Liste de chapitres avec somme de versets 0: $element")
+                                logger.debug("Liste de chapitres avec somme de versets 0: {}", element)
                             }
                             sum.takeIf { it > 0 }
                         }
@@ -69,7 +69,7 @@ internal data class FlexibleShapeItem(
                 ShapeItem(section, heTitle, title, length, listOf(singleChapter), book, heBook)
             }
             else -> {
-                logger.debug("Format du champ 'chapters' non supporté pour '$title': $chapters")
+                logger.debug("Format du champ 'chapters' non supporté pour '{}': {}", title, chapters)
                 ShapeItem(section, heTitle, title, length, emptyList(), book, heBook) // Retourne une liste vide ou adaptez selon vos besoins
             }
         }

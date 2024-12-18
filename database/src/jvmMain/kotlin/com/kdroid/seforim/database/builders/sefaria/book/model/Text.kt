@@ -1,4 +1,4 @@
-package com.kdroid.seforim.database.builders.book.model
+package com.kdroid.seforim.database.builders.sefaria.book.model
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement

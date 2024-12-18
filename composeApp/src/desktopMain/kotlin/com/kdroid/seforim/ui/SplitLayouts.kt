@@ -53,7 +53,7 @@ fun SplitLayouts() {
                 }
             }
             second(50.dp) {
-                val bookIndex = loadBookIndex("Tur, Orach Chaim")
+                val bookIndex = loadBookIndex("Beit Yosef, Orach Chaim")
                 BookViewScreen(bookIndex = bookIndex)
             }
             splitter {

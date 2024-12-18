@@ -1,6 +1,6 @@
-package com.kdroid.seforim.database.builders.book.api
+package com.kdroid.seforim.database.builders.sefaria.book.api
 
-import com.kdroid.seforim.database.builders.book.util.logger
+import com.kdroid.seforim.database.builders.sefaria.book.util.logger
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.request.*
