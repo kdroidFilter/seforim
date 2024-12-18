@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
+import com.kdroid.seforim.constants.GENERATED_FOLDER
 import com.kdroid.seforim.core.model.DirectoryNode
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.builtins.ListSerializer
@@ -30,7 +31,7 @@ import java.io.File
 @OptIn(ExperimentalSerializationApi::class)
 internal fun readDirectoryNodesFromProtobuf(fileName: String): List<DirectoryNode> {
     // Navigate to the database module directory relatively
-    val basePath = File("../database/generated/$fileName")
+    val basePath = File("../database/$GENERATED_FOLDER/$fileName")
     val fileBytes = basePath.readBytes()
     return ProtoBuf.decodeFromByteArray(ListSerializer(DirectoryNode.serializer()), fileBytes)
 }

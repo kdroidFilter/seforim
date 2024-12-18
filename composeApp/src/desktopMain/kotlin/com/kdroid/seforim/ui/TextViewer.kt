@@ -11,8 +11,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import be.digitalia.compose.htmlconverter.htmlToAnnotatedString
 import be.digitalia.compose.htmlconverter.htmlToString
 import com.kdroid.gematria.converter.toHebrewNumeral
+import com.kdroid.seforim.constants.GENERATED_FOLDER
 import com.kdroid.seforim.core.model.BookIndex
 import com.kdroid.seforim.core.model.CommentaryBase
 import com.kdroid.seforim.core.model.Verse
@@ -27,7 +29,7 @@ import seforim.composeapp.generated.resources.Res
 import java.io.File
 
 fun loadBookIndex(bookTitle: String): BookIndex {
-    val path = "../database/generated/$bookTitle/index.json"
+    val path = "../database/$GENERATED_FOLDER/$bookTitle/index.json"
     val file = File(path)
     val indexJson = file.readText()
     return Json.decodeFromString<BookIndex>(indexJson)
@@ -164,7 +166,7 @@ fun BookViewScreen(bookIndex: BookIndex) {
 
 // Example implementation of loadVerse
 fun loadVerse(bookTitle: String, chapter: Int, verse: Int): Verse {
-    val path = "../database/generated/$bookTitle/$chapter/$verse.json"
+    val path = "../database/$GENERATED_FOLDER/$bookTitle/$chapter/$verse.json"
     val file = File(path)
     val verseJson = file.readText()
     return Json.decodeFromString<Verse>(verseJson)
@@ -179,10 +181,9 @@ fun VerseScreen(verse: Verse) {
     ) {
         item {
             Text(
-                htmlToString(verse.text),
+                text = remember(verse.text) { htmlToAnnotatedString(verse.text) },
                 fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
+                textAlign = TextAlign.Justify,
                 fontFamily = fontAwesome,
                 lineHeight = 22.sp
             )
@@ -206,7 +207,7 @@ fun VerseScreen(verse: Verse) {
                         Text("— ${commentary.commentatorName}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         commentary.texts.forEach { text ->
                             Text(
-                                text = htmlToString(text),
+                                text = remember(text) { htmlToAnnotatedString(text) },
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Justify,
                                 fontSize = 13.sp

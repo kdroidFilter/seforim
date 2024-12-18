@@ -5,6 +5,7 @@ import com.kdroid.seforim.core.model.DirectoryNode
 import com.kdroid.seforim.core.model.TableOfContent
 import com.kdroid.seforim.database.builders.book.util.buildBookFromShape
 import com.kdroid.seforim.database.common.config.json
+import com.kdroid.seforim.database.common.constants.BLACKLIST
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -22,7 +23,7 @@ import org.slf4j.LoggerFactory
  * @param tree A list of `TableOfContent` representing the hierarchy.
  */
 @OptIn(ExperimentalSerializationApi::class)
-fun createDirectoriesAndFilesWithIndex(rootPath: String, tree: List<TableOfContent>) {
+fun createDirectoriesAndFilesWithIndex(rootPath: String, tree: List<TableOfContent>, createBooks : Boolean = true) {
     val logger = LoggerFactory.getLogger("DirectoryCreator")
 
     // Converts an absolute path to a relative path relative to the root
@@ -31,13 +32,18 @@ fun createDirectoriesAndFilesWithIndex(rootPath: String, tree: List<TableOfConte
     }
 
     fun processNode(currentPath: File, contents: List<ContentItem>?): DirectoryNode {
-        val childrenNodes = contents?.map { item ->
+        val childrenNodes = contents?.mapNotNull { item ->
             val nodeName = when {
                 !item.title.isNullOrBlank() -> item.title
                 !item.category.isNullOrBlank() -> item.category
                 else -> "Untitled"
             }
 
+            // Vérifiez si le nom du livre est dans la liste noire
+            if (BLACKLIST.contains(nodeName)) {
+                logger.info("Livre ignoré (présent dans la liste noire) : $nodeName")
+                return@mapNotNull null // Exclure ce nœud de l'arbre
+            }
             val nodePath = File(currentPath, nodeName)
             val hebrewTitle = item.heTitle ?: item.heCategory
 
@@ -49,10 +55,12 @@ fun createDirectoriesAndFilesWithIndex(rootPath: String, tree: List<TableOfConte
 
             if (item.contents.isNullOrEmpty()) {
 
-                // Leaf node: create the book
-                runBlocking {
-                    if (nodeName != null) {
-                        buildBookFromShape(nodeName, nodePath.parent)
+                if (createBooks) {
+                    // Leaf node: create the book
+                    runBlocking {
+                        if (nodeName != null) {
+                            buildBookFromShape(nodeName, nodePath.parent)
+                        }
                     }
                 }
                 // Return a leaf node with a relative path
