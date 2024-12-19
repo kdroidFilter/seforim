@@ -40,6 +40,7 @@ internal suspend fun buildBookFromShape(bookTitle: String, rootFolder: String) {
 
     val jsonElement = json.parseToJsonElement(shapeJson)
 
+    //TODO Unify the detection of complex books with that of the Directory builder
     if (jsonElement.jsonArray.firstOrNull()?.jsonObject?.get("isComplex")?.jsonPrimitive?.boolean == true) {
         logger.info("Detected complex book structure for: $bookTitle")
         val complexBook = json.decodeFromString<List<ComplexShapeItem>>(shapeJson).first()
