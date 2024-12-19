@@ -3,14 +3,19 @@ package com.kdroid.seforim.database.builders.sefaria.directories
 import com.kdroid.seforim.core.model.ContentItem
 import com.kdroid.seforim.core.model.DirectoryNode
 import com.kdroid.seforim.core.model.TableOfContent
+import com.kdroid.seforim.database.builders.sefaria.book.api.fetchJsonFromApi
+import com.kdroid.seforim.database.builders.sefaria.book.model.ComplexShapeItem
+import com.kdroid.seforim.database.builders.sefaria.book.model.FlexibleShapeItem
 import com.kdroid.seforim.database.builders.sefaria.book.util.buildBookFromShape
 import com.kdroid.seforim.database.common.config.json
+import com.kdroid.seforim.database.common.constants.BASE_URL
 import com.kdroid.seforim.database.common.constants.BLACKLIST
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
 import java.io.File
 import kotlinx.serialization.encodeToByteArray
+import kotlinx.serialization.json.*
 import kotlinx.serialization.protobuf.ProtoBuf
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -25,7 +30,7 @@ import org.slf4j.LoggerFactory
  * @param createBooks A boolean flag indicating whether book-related files should be created.
  *                    Defaults to true.
  */
-fun createDirectoriesAndFilesWithIndex(rootPath: String, tree: List<TableOfContent>, createBooks: Boolean = true) {
+suspend fun createDirectoriesAndFilesWithIndex(rootPath: String, tree: List<TableOfContent>, createBooks: Boolean = true) {
     val logger = LoggerFactory.getLogger("DirectoryCreator")
 
     val rootDir = initializeRootDirectory(rootPath, logger) ?: return
@@ -70,7 +75,7 @@ private fun initializeRootDirectory(rootPath: String, logger: Logger): File? {
  * @param logger The logger used for logging operations and warnings during processing.
  * @return A DirectoryNode representing the processed category and its contents, or null if no contents were processed.
  */
-private fun processCategory(
+private suspend fun processCategory(
     toc: TableOfContent,
     rootDir: File,
     rootPath: String,
@@ -114,7 +119,7 @@ private fun processCategory(
  * @return A `DirectoryNode` representing the processed directory and its children, or null if
  *         the directory or its children are excluded or empty.
  */
-private fun processNode(
+private suspend fun processNode(
     currentPath: File,
     contents: List<ContentItem>?,
     rootPath: String,
@@ -139,19 +144,22 @@ private fun processNode(
     } else null
 }
 
+
 /**
- * Processes a given content item and constructs a `DirectoryNode` representation based on its attributes and structure.
+ * Processes a content item by creating its corresponding directory structure and handling its data.
  *
- * @param item The content item to be processed, containing metadata and optional nested contents.
- * @param currentPath The current directory path where the node should be created or processed.
- * @param rootPath The root directory path, used for relative path calculations in the resulting node.
- * @param createBooks A boolean flag indicating whether to create books for leaf nodes.
- * @param logger The logger instance used for logging debug and informational messages during processing.
+ * This method validates whether a content item is blacklisted, attempts to create a directory
+ * for the item, and processes it recursively if it has children. For items without children,
+ * it checks for complex book structures and creates books if required.
  *
- * @return A `DirectoryNode` representing the processed content item and its children,
- *         or null if the content item is excluded or blacklisted.
+ * @param item The `ContentItem` object to be processed.
+ * @param currentPath The current `File` object representing the directory path being processed.
+ * @param rootPath The root path as a `String` used for determining relative paths.
+ * @param createBooks A `Boolean` flag indicating whether to generate books where applicable.
+ * @param logger A `Logger` instance used for logging information, warnings, and errors during the process.
+ * @return A `DirectoryNode` representing the processed directory structure, or `null` if the item is blacklisted.
  */
-private fun processContentItem(
+private suspend fun processContentItem(
     item: ContentItem,
     currentPath: File,
     rootPath: String,
@@ -176,18 +184,92 @@ private fun processContentItem(
     }
 
     return if (item.contents.isNullOrEmpty()) {
-        if (createBooks) {
-            runBlocking { buildBookFromShape(nodeName, nodePath.parent) }
+        // Check if it is a complex book
+        val bookChildren = checkForComplexBook(nodeName, nodePath.path, createBooks, logger)
+
+        if (bookChildren.isNotEmpty()) {
+            DirectoryNode(
+                name = nodeName,
+                path = toRelativePath(File(rootPath), nodePath),
+                children = bookChildren,
+                isLeaf = false,
+                hebrewTitle = hebrewTitle
+            )
+        } else {
+            if (createBooks) {
+                runBlocking { buildBookFromShape(nodeName, nodePath.parent) }
+            }
+            DirectoryNode(
+                name = nodeName,
+                path = toRelativePath(File(rootPath), nodePath),
+                children = emptyList(),
+                isLeaf = true,
+                hebrewTitle = hebrewTitle
+            )
         }
-        DirectoryNode(
-            name = nodeName,
-            path = toRelativePath(File(rootPath), nodePath),
-            children = emptyList(),
-            isLeaf = true,
-            hebrewTitle = hebrewTitle
-        )
     } else {
         processNode(nodePath, item.contents, rootPath, createBooks, logger)
+    }
+}
+
+/**
+ * Checks whether the specified book is complex and processes its structure if necessary.
+ * This function determines if the structure of a book is complex*/
+private suspend fun checkForComplexBook(
+    bookTitle: String,
+    rootFolder: String,
+    createBooks: Boolean,
+    logger: Logger
+): List<DirectoryNode> {
+    val encodedTitle = bookTitle.replace(" ", "%20")
+    logger.info("Checking if book is complex: $bookTitle")
+    val shapeUrl = "$BASE_URL/shape/$encodedTitle"
+
+
+    //DEBUG
+    if ((bookTitle != "Tur") && (bookTitle != "Abarbanel on Torah")) {
+        logger.info("The book '$bookTitle' is not complex. No API check needed.")
+        return emptyList()
+    }
+
+    return try {
+        val shapeJson = fetchJsonFromApi(shapeUrl)
+        val jsonElement = json.parseToJsonElement(shapeJson)
+
+        if (jsonElement.jsonArray.firstOrNull()?.jsonObject?.get("isComplex")?.jsonPrimitive?.boolean == true) {
+            logger.info("Detected complex book structure for: $bookTitle")
+            val complexBook = json.decodeFromString<List<ComplexShapeItem>>(shapeJson).first()
+
+            // Create child nodes for each chapter of the complex book
+            complexBook.chapters.mapNotNull { chapterElement ->
+                when (chapterElement) {
+                    is JsonObject -> {
+                        val chapter = json.decodeFromJsonElement<FlexibleShapeItem>(chapterElement)
+                        val chapterPath = "${rootFolder}/${chapter.title}"
+
+                        if (createBooks) {
+                            // Create the chapter file
+                            File(chapterPath).mkdirs()
+                            buildBookFromShape(chapter.title, rootFolder)
+                        }
+
+                        DirectoryNode(
+                            name = chapter.title,
+                            path = chapterPath,
+                            children = emptyList(),
+                            isLeaf = true,
+                            hebrewTitle = chapter.heTitle
+                        )
+                    }
+                    else -> null
+                }
+            }
+        } else {
+            emptyList()
+        }
+    } catch (e: Exception) {
+        logger.error("Error checking complex book structure for $bookTitle: ${e.message}")
+        emptyList()
     }
 }
 
@@ -204,7 +286,7 @@ private fun processContentItem(
 private fun determineNodeName(item: ContentItem): String {
     return when {
         !item.title.isNullOrBlank() -> item.title!!.trim()
-        !item.category.isNullOrBlank() -> item.category!!.trim()
+        !item.category.isNullOrBlank() -> item.heCategory!!.trim()
         else -> "Untitled"
     }
 }

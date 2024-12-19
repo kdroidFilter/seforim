@@ -14,10 +14,14 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.*
+import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.collections.component1
 import kotlin.collections.component2
 import kotlin.collections.set
+
+
+internal val logger = LoggerFactory.getLogger("BookBuilderUtil")
 
 
 /**
