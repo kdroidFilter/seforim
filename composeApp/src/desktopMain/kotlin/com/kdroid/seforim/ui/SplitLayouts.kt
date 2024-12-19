@@ -40,7 +40,7 @@ private fun Modifier.cursorForHorizontalResize(): Modifier =
 
 @OptIn(ExperimentalSplitPaneApi::class)
 @Composable
-fun SplitLayouts() {
+fun SplitLayouts(bookTitle: String) {
     Column(Modifier.fillMaxSize()) {
         val splitterState = rememberSplitPaneState()
         HorizontalSplitPane(
@@ -53,7 +53,7 @@ fun SplitLayouts() {
                 }
             }
             second(50.dp) {
-                val bookIndex = loadBookIndex("Tur, Choshen Mishpat")
+                val bookIndex = loadBookIndex(bookTitle)
                 BookViewScreen(bookIndex = bookIndex)
             }
             splitter {

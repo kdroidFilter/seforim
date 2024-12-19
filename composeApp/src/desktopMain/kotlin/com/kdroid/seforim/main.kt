@@ -4,15 +4,11 @@ import SplitLayouts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.application
-import com.kdroid.seforim.ui.DisplayTree
 import com.kdroid.seforim.ui.TitleBarView
 import com.kdroid.seforim.utils.DarkModeDetector
 import org.jetbrains.jewel.foundation.modifier.trackActivation
@@ -22,7 +18,6 @@ import org.jetbrains.jewel.intui.window.decoratedWindow
 import org.jetbrains.jewel.intui.window.styling.dark
 import org.jetbrains.jewel.intui.window.styling.lightWithLightHeader
 import org.jetbrains.jewel.ui.ComponentStyling
-import org.jetbrains.jewel.ui.component.SplitLayoutState
 import org.jetbrains.jewel.window.DecoratedWindow
 import org.jetbrains.jewel.window.styling.TitleBarStyle
 
@@ -59,7 +54,7 @@ fun main() {
                         Column(
                             Modifier.trackActivation().fillMaxSize().background(JewelTheme.globalColors.panelBackground)
                         ) {
-                            SplitLayouts()
+                            SplitLayouts("Horayot")
                         }
                     },
                 )

@@ -97,10 +97,12 @@ private suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
     val totalVerses = shape.chapters.sum()
     var processedVerses = 0
     val bookTitle = shape.title
+    val isTalmud = isTalmud(shape.book)
 
     logger.info("Processing book: ${shape.title}")
 
     val chapterCommentators = mutableMapOf<Int, MutableSet<String>>()
+
 
     // Define a coroutine scope
     coroutineScope {
@@ -111,8 +113,9 @@ private suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
         val tasks = mutableListOf<Deferred<Unit>>()
 
         shape.chapters.forEachIndexed { chapterIndex, nbVerses ->
+            val chapterNumber = if (isTalmud) chapterIndex - 1 else chapterIndex + 1
             chapterCommentators[chapterIndex] = mutableSetOf()
-            logger.info("Processing chapter ${chapterIndex + 1} with $nbVerses verses")
+            logger.info("Processing chapter $chapterNumber with $nbVerses verses")
 
             if (shape.length == 1 && shape.title.contains("Introduction")) {
                 // Special case: length == 1, fetch text without adding "1.1"
@@ -149,7 +152,7 @@ private suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
                                     else -> ""
                                 }
 
-                                val comments = fetchCommentsForVerse(endpointTitle, chapterIndex + 1, verseIndex + 1, shape = shape)
+                                val comments = fetchCommentsForVerse(endpointTitle, chapterNumber, verseIndex + 1, shape = shape, isTalmud = isTalmud)
 
                                 comments.commentary.forEach { commentary ->
                                     chapterCommentators[chapterIndex]?.add(commentary.commentatorName)
@@ -164,9 +167,9 @@ private suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
                                     otherLinks = comments.otherLinks
                                 )
 
-                                saveVerse(bookTitle, chapterIndex + 1, verseIndex + 1, verse, rootFolder)
+                                saveVerse(bookTitle, chapterNumber, verseIndex + 1, verse, rootFolder)
                                 processedVerses++
-                                logger.info("Processed verse ${chapterIndex + 1}:${verseIndex + 1}")
+                                logger.info("Processed verse $chapterNumber:${verseIndex + 1}")
                             }
                         }
                         tasks.add(task)
@@ -177,7 +180,7 @@ private suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
             } else {
                 // Standard case: multiple chapters and verses
                 if (nbVerses == 0) {
-                    logger.info("Chapter ${chapterIndex + 1} has 0 verses, skipping.")
+                    logger.info("Chapter $chapterNumber has 0 verses, skipping.")
                     return@forEachIndexed
                 }
 
@@ -186,27 +189,28 @@ private suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
                     val task = async {
                         semaphore.withPermit {
                             val endpointTitle = shape.title
-                            val textUrl = "$BASE_URL/v3/texts/$endpointTitle ${chapterIndex + 1}.$verseNumber"
+                            val chapterWithGuemaraCheck = if (isTalmud) chapterNumber.toGuemaraInt() else chapterNumber
+                            val textUrl = "$BASE_URL/v3/texts/$endpointTitle ${chapterWithGuemaraCheck}.$verseNumber"
                             val verseJson = fetchJsonFromApi(textUrl.replace(" ", "%20"))
 
                             // Error checking
                             val parsedJson = try {
                                 json.parseToJsonElement(verseJson)
                             } catch (e: SerializationException) {
-                                logger.info("Failed to parse JSON for verse ${chapterIndex + 1}:$verseNumber: ${e.message}")
+                                logger.info("Failed to parse JSON for verse $chapterNumber:$verseNumber: ${e.message}")
                                 return@withPermit
                             }
 
                             if (parsedJson is JsonObject && parsedJson.containsKey("error")) {
                                 val errorMsg = parsedJson["error"]?.jsonPrimitive?.content
-                                logger.info("Skipping verse ${chapterIndex + 1}:$verseNumber due to error: $errorMsg")
+                                logger.info("Skipping verse $chapterNumber:$verseNumber due to error: $errorMsg")
                                 return@withPermit
                             }
 
                             val verseResponse = try {
                                 json.decodeFromString<VerseResponse>(verseJson)
                             } catch (e: SerializationException) {
-                                logger.info("Failed to deserialize VerseResponse for verse ${chapterIndex + 1}:$verseNumber: ${e.message}")
+                                logger.info("Failed to deserialize VerseResponse for verse $chapterNumber:$verseNumber: ${e.message}")
                                 return@withPermit
                             }
 
@@ -216,7 +220,7 @@ private suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
                                 else -> ""
                             }
 
-                            val comments = fetchCommentsForVerse(endpointTitle, chapterIndex + 1, verseNumber, shape = shape)
+                            val comments = fetchCommentsForVerse(endpointTitle, chapterNumber, verseNumber, shape = shape, isTalmud = isTalmud)
 
                             comments.commentary.forEach { commentary ->
                                 chapterCommentators[chapterIndex]?.add(commentary.commentatorName)
@@ -231,7 +235,7 @@ private suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
                                 otherLinks = comments.otherLinks
                             )
 
-                            saveVerse(bookTitle, chapterIndex + 1, verseNumber, verse, rootFolder)
+                            saveVerse(bookTitle, chapterNumber, verseNumber, verse, rootFolder)
                             processedVerses++
                             val progress = (processedVerses.toDouble() / totalVerses * 100).toInt()
                             logger.info("Progress: $progress% ($processedVerses/$totalVerses verses)")
@@ -248,13 +252,14 @@ private suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
         // Create the book index
         val chaptersIndexList = shape.chapters.mapIndexed { chapterIndex, nbVerses ->
             ChapterIndex(
-                chapterNumber = chapterIndex + 1,
+                chapterNumber = if (isTalmud) chapterIndex - 1 else chapterIndex + 1,
                 numberOfVerses = nbVerses,
                 commentators = chapterCommentators[chapterIndex]?.toList() ?: emptyList()
             )
         }
 
         val bookIndex = BookIndex(
+            type = if (isTalmud) BookType.TALMUD else BookType.OTHER,
             title = shape.title,
             heTitle = shape.heBook,
             numberOfChapters = shape.chapters.size,
@@ -266,6 +271,33 @@ private suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
         indexFile.writeText(json.encodeToString(bookIndex))
 
         logger.info("Index file created for $bookTitle: ${indexFile.absolutePath}")
+    }
+}
+
+private fun Int.toGuemaraInt(): String {
+    val numberPart = (this + 1) / 2 + 1
+    val suffix = if (this % 2 == 1) "a" else "b"
+    return "$numberPart$suffix"
+}
+
+private suspend fun isTalmud(bookTitle: String): Boolean {
+    logger.info("Checking if '$bookTitle' contains 'Talmud' in addressTypes")
+    val jsonResponse = fetchJsonFromApi("$BASE_URL/v2/raw/index/$bookTitle")
+    return try {
+        val jsonElement = Json.parseToJsonElement(jsonResponse)
+        val addressTypes = jsonElement.jsonObject["schema"]?.jsonObject?.get("addressTypes")
+
+        if (addressTypes != null && addressTypes is JsonArray) {
+            val containsTalmud = addressTypes.any { it.jsonPrimitive.content == "Talmud" }
+            logger.info("Result for '$bookTitle': contains 'Talmud' = $containsTalmud")
+            containsTalmud
+        } else {
+            logger.warn("'addressTypes' is missing or not an array in the response for '$bookTitle'")
+            false
+        }
+    } catch (e: Exception) {
+        logger.error("Error parsing JSON response for '$bookTitle': ${e.message}", e)
+        false
     }
 }
 
@@ -307,13 +339,15 @@ private suspend fun fetchCommentsForVerse(
     bookTitle: String,
     chapter: Int,
     verse: Int,
-    shape: ShapeItem
+    shape: ShapeItem,
+    isTalmud: Boolean,
 ): CommentaryResponse {
     val formattedTitle = bookTitle.replace(" ", "%20")
     val commentsUrl = if (shape.length == 1 && shape.title.contains("Introduction")) {
         "$BASE_URL/links/$formattedTitle"
     } else {
-        "$BASE_URL/links/$formattedTitle.$chapter.$verse"
+        val chapterWithGuemaraCheck = if (isTalmud) chapter.toGuemaraInt() else chapter
+        "$BASE_URL/links/$formattedTitle.${chapterWithGuemaraCheck}.$verse"
     }
     logger.debug("Fetching comments for $bookTitle chapter $chapter, verse $verse from: $commentsUrl")
 
@@ -359,7 +393,7 @@ private suspend fun fetchCommentsForVerse(
 
     // We retrieve the common list, only with the 'he' field
     val allCommentaries = commentsList
-        .filterNot { BLACKLIST.contains(it.collectiveTitle.he ?: "Unknown") }
+        .filterNot { BLACKLIST.contains(it.collectiveTitle.en ?: "Unknown") }
         .groupBy { it.collectiveTitle.he ?: "Unknown" }
         .mapNotNull { (commentator, groupedComments) ->
             val heTexts = groupedComments.flatMap { commentItem ->

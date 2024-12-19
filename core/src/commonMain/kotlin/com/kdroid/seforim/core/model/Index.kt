@@ -12,7 +12,13 @@ data class ChapterIndex(
 )
 
 @Serializable
+enum class BookType {
+    TALMUD, OTHER
+}
+
+@Serializable
 data class BookIndex(
+    val type: BookType = BookType.OTHER,
     val title: String,
     val heTitle: String,
     val numberOfChapters: Int,

@@ -12,7 +12,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import be.digitalia.compose.htmlconverter.htmlToAnnotatedString
-import be.digitalia.compose.htmlconverter.htmlToString
 import com.kdroid.gematria.converter.toHebrewNumeral
 import com.kdroid.seforim.constants.GENERATED_FOLDER
 import com.kdroid.seforim.core.model.BookIndex
@@ -51,7 +50,9 @@ fun BookViewScreen(bookIndex: BookIndex) {
 
     // List of chapters
     val chapters = remember(bookIndex) {
-        bookIndex.chapters.map { it.chapterNumber }
+        bookIndex.chapters
+            .map { it.chapterNumber }
+            .filter { it >= 0 } // Filtrer pour exclure les nombres négatifs
     }
 
     // List of verses for the selected chapter
@@ -76,6 +77,7 @@ fun BookViewScreen(bookIndex: BookIndex) {
             // First SelectableLazyColumn: List of chapters
             Text("פרקים", fontSize = 12.sp, modifier = Modifier)
             SelectableLazyColumn(
+                modifier = Modifier.weight(1f),
                 selectionMode = SelectionMode.Single,
                 state = chapterListState,
                 onSelectedIndexesChange = { selectedIndexes ->
@@ -91,6 +93,8 @@ fun BookViewScreen(bookIndex: BookIndex) {
                         key = { index -> "chapter_${chapters[index]}" }
                     ) { index ->
                         val chapterNumber = chapters[index]
+
+                        if (chapterNumber == 0) return@items
                         val isSelected = chapterNumber == currentChapter
 
                         Box(
@@ -114,6 +118,7 @@ fun BookViewScreen(bookIndex: BookIndex) {
             // Second SelectableLazyColumn: List of verses
             Text("פסוקים", fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
             SelectableLazyColumn(
+                modifier = Modifier.weight(1f),
                 selectionMode = SelectionMode.Single,
                 state = verseListState,
                 onSelectedIndexesChange = { selectedIndexes ->
