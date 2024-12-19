@@ -379,7 +379,7 @@ private suspend fun fetchCommentsForVerse(
                     "commentary" -> "COMMENTARY"
                     "quoting commentary" -> "QUOTING_COMMENTARY"
                     "reference" -> "REFERENCE"
-                    else -> "AUTRE"
+                    else -> "OTHER_LINKS"
                 }
 
                 when (commentaryType) {
