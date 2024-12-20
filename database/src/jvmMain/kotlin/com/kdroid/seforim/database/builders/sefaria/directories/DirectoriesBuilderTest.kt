@@ -9,3 +9,4 @@ suspend fun main() {
    //  saveToProtobuf(fetchTableOfContents(), "$GENERATED_FOLDER/$TABLE_OF_CONTENTS.proto")
      createDirectoriesAndFilesWithIndex(GENERATED_FOLDER, readFromProtobuf("$GENERATED_FOLDER/$TABLE_OF_CONTENTS.proto"), createBooks = false)
 }
+

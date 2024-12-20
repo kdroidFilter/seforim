@@ -1,6 +1,7 @@
 package com.kdroid.seforim.database.builders.sefaria.book.util
 
 import com.kdroid.seforim.core.model.*
+import com.kdroid.seforim.core.model.CommentaryType.*
 import com.kdroid.seforim.database.builders.sefaria.book.api.fetchJsonFromApi
 import com.kdroid.seforim.database.builders.sefaria.book.model.*
 import com.kdroid.seforim.database.common.config.json
@@ -107,7 +108,7 @@ private suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
     // Define a coroutine scope
     coroutineScope {
         // Initialize a Semaphore with 50 permits
-        val semaphore = Semaphore(50)
+        val semaphore = Semaphore(20)
 
         // List to store all tasks
         val tasks = mutableListOf<Deferred<Unit>>()
@@ -229,6 +230,7 @@ private suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String) {
                             val verse = Verse(
                                 number = verseNumber,
                                 text = verseText,
+                                targum = comments.targum,
                                 commentary = comments.commentary,
                                 quotingCommentary = comments.quotingCommentary,
                                 reference = comments.reference,
@@ -393,7 +395,7 @@ private suspend fun fetchCommentsForVerse(
 
     // We retrieve the common list, only with the 'he' field
     val allCommentaries = commentsList
-        .filterNot { BLACKLIST.contains(it.collectiveTitle.en ?: "Unknown") }
+        .filterNot { BLACKLIST.contains(it.index_title ?: "Unknown") }
         .groupBy { it.collectiveTitle.he ?: "Unknown" }
         .mapNotNull { (commentator, groupedComments) ->
             val heTexts = groupedComments.flatMap { commentItem ->
@@ -410,22 +412,27 @@ private suspend fun fetchCommentsForVerse(
             if (heTexts.isNotEmpty()) {
                 val firstCategory = groupedComments.firstOrNull()?.category ?: ""
                 val commentaryType = when (firstCategory.lowercase()) {
-                    "commentary" -> "COMMENTARY"
-                    "quoting commentary" -> "QUOTING_COMMENTARY"
-                    "reference" -> "REFERENCE"
-                    else -> "OTHER_LINKS"
+                    "commentary" -> COMMENTARY
+                    "targum" -> TARGUM
+                    "quoting commentary" -> QUOTING_COMMENTARY
+                    "reference" -> REFERENCE
+                    else -> OTHER_LINKS
                 }
 
                 when (commentaryType) {
-                    "COMMENTARY" -> Commentary(
+                    COMMENTARY -> Commentary(
                         commentatorName = commentator,
                         texts = heTexts
                     )
-                    "QUOTING_COMMENTARY" -> QuotingCommentary(
+                    TARGUM -> Targum(
                         commentatorName = commentator,
                         texts = heTexts
                     )
-                    "REFERENCE" -> Reference(
+                    QUOTING_COMMENTARY -> QuotingCommentary(
+                        commentatorName = commentator,
+                        texts = heTexts
+                    )
+                    REFERENCE -> Reference(
                         commentatorName = commentator,
                         texts = heTexts
                     )
@@ -439,6 +446,7 @@ private suspend fun fetchCommentsForVerse(
 
     // Distribute by type
     val commentaryList = allCommentaries.filterIsInstance<Commentary>()
+    val targumList = allCommentaries.filterIsInstance<Targum>()
     val quotingList = allCommentaries.filterIsInstance<QuotingCommentary>()
     val referenceList = allCommentaries.filterIsInstance<Reference>()
     val otherList = allCommentaries.filterIsInstance<OtherLinks>()
@@ -446,6 +454,7 @@ private suspend fun fetchCommentsForVerse(
     // Return a structured object
     return CommentaryResponse(
         commentary = commentaryList,
+        targum = targumList,
         quotingCommentary = quotingList,
         reference = referenceList,
         otherLinks = otherList

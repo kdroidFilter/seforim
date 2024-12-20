@@ -225,6 +225,7 @@ fun VerseScreen(verse: Verse) {
         }
 
         // Display different categories of commentaries
+        displayCommentSection("תרגומים", verse.targum)
         displayCommentSection("פירושים", verse.commentary)
         displayCommentSection("פירושים צדדים", verse.quotingCommentary)
         displayCommentSection("מקורות", verse.reference)

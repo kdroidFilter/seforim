@@ -19,6 +19,7 @@ data class Verse(
     val number: Int,
     val text: String,
     val commentary: List<Commentary> = emptyList(),
+    val targum: List<Targum> = emptyList(),
     val quotingCommentary: List<QuotingCommentary> = emptyList(),
     val reference: List<Reference> = emptyList(),
     val otherLinks: List<OtherLinks> = emptyList()
