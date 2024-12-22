@@ -39,44 +39,46 @@ fun loadBookIndex(bookTitle: String): BookIndex {
 
 @Composable
 fun BookViewScreen(bookIndex: BookIndex) {
-    // Default states for the selected chapter and verse
     val defaultChapter = 1
     val defaultVerse = 1
     var currentChapter by remember { mutableStateOf(defaultChapter) }
     var currentVerse by remember { mutableStateOf(defaultVerse) }
 
-    // Load data for the current verse
-    val currentVerseData by produceState<Verse?>(initialValue = null, currentChapter, currentVerse) {
-        value = loadVerse(bookIndex.title, currentChapter, currentVerse)
+    // Get current chapter's offset
+    val currentChapterOffset = remember(currentChapter) {
+        bookIndex.chapters.find { it.chapterNumber == currentChapter }?.offset ?: 0
     }
 
-    // List of chapters
+    // Load data for the current verse, taking offset into account
+    val currentVerseData by produceState<Verse?>(initialValue = null, currentChapter, currentVerse) {
+        value = loadVerse(bookIndex.title, currentChapter, currentVerse + currentChapterOffset)
+    }
+
     val chapters = remember(bookIndex) {
         bookIndex.chapters
             .map { it.chapterNumber }
-            .filter { it >= 0 } // Filtrer pour exclure les nombres négatifs
+            .filter { it >= 0 }
     }
 
-    // List of verses for the selected chapter
+    // List of verses for the selected chapter, adjusted for offset
     val verses = remember(currentChapter, bookIndex) {
         bookIndex.chapters
             .firstOrNull { it.chapterNumber == currentChapter }
-            ?.let { chapter -> (1..chapter.numberOfVerses).map { it } }
+            ?.let { chapter ->
+                (1..chapter.numberOfVerses).map { it }
+            }
             ?: emptyList()
     }
 
-    // States for the two SelectableLazyColumns
     val chapterListState = rememberSelectableLazyListState()
     val verseListState = rememberSelectableLazyListState()
 
     Row(modifier = Modifier.fillMaxSize()) {
-        // Left column for chapters and verses
         Column(
             modifier = Modifier
                 .weight(1f)
                 .padding(8.dp)
         ) {
-            // First SelectableLazyColumn: List of chapters
             Text("פרקים", fontSize = 12.sp, modifier = Modifier)
             SelectableLazyColumn(
                 modifier = Modifier.weight(1f),
@@ -108,20 +110,17 @@ fun BookViewScreen(bookIndex: BookIndex) {
                                 .padding(8.dp)
                         ) {
                             if (bookIndex.sectionNames.isEmpty())
+                                Text(chapterNumber.toHebrewNumeral(), fontSize = 10.sp)
+                            else
                                 Text(
-                                    chapterNumber.toHebrewNumeral(), fontSize = 10.sp
+                                    text = "${bookIndex.sectionNames[0]} ${if(bookIndex.type == BookType.TALMUD) chapterNumber.toDafGemara() else chapterNumber.toHebrewNumeral()}",
+                                    fontSize = 12.sp
                                 )
-                            else                            Text(
-                                text = "${bookIndex.sectionNames[0]} ${if(bookIndex.type == BookType.TALMUD) chapterNumber.toDafGemara() else chapterNumber.toHebrewNumeral()}",
-                                fontSize = 12.sp
-                            )
                         }
                     }
                 }
             )
 
-
-            // Second SelectableLazyColumn: List of verses
             Text("פסוקים", fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
             SelectableLazyColumn(
                 modifier = Modifier.weight(1f),
@@ -150,21 +149,21 @@ fun BookViewScreen(bookIndex: BookIndex) {
                                 .padding(8.dp)
                         ) {
                             if (bookIndex.sectionNames.isEmpty())
+                                Text(verseNumber.toHebrewNumeral(), fontSize = 10.sp)
+                            else {
+                                // Display the actual verse number (with offset) in the UI
+                                val displayVerseNumber = verseNumber + currentChapterOffset
                                 Text(
-                                    verseNumber.toHebrewNumeral(), fontSize = 10.sp
-                                )
-                            else
-                                Text(
-                                    text = "${bookIndex.sectionNames[1]} ${verseNumber.toHebrewNumeral()}",
+                                    text = "${bookIndex.sectionNames[1]} ${displayVerseNumber.toHebrewNumeral()}",
                                     fontSize = 10.sp
                                 )
+                            }
                         }
                     }
                 }
             )
         }
 
-        // Right column to display the selected verse
         Column(
             modifier = Modifier
                 .weight(3f)
@@ -180,8 +179,8 @@ fun BookViewScreen(bookIndex: BookIndex) {
     }
 }
 
-// Example implementation of loadVerse
 fun loadVerse(bookTitle: String, chapter: Int, verse: Int): Verse {
+    // Use the adjusted verse number (with offset) for the file path
     val path = "../database/$GENERATED_FOLDER/$bookTitle/$chapter/$verse.json"
     val file = File(path)
     val verseJson = file.readText()

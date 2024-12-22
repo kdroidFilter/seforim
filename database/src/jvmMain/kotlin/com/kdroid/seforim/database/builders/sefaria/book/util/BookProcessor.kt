@@ -14,8 +14,8 @@ import kotlinx.serialization.json.*
 import java.io.File
 
 /**
- * Classe responsable du traitement des livres en récupérant les versets, les commentaires,
- * en sauvegardant les données et en créant des index.
+ * Classe responsable du traitement des livres en récupérant les versets,
+ * les commentaires, en sauvegardant les données et en créant des index.
  */
 class BookProcessor {
 
@@ -23,9 +23,14 @@ class BookProcessor {
      * Orchestration principale pour traiter un livre simple.
      *
      * @param shape L'objet ShapeItem représentant la structure du livre.
-     * @param rootFolder Le répertoire racine où les données seront sauvegardées.
+     * @param rootFolder Le répertoire racine où les données seront
+     *    sauvegardées.
      */
-    internal suspend fun processSimpleBook(shape: ShapeItem, rootFolder: String, subBookTitle: String? = null) {
+    internal suspend fun processSimpleBook(
+        shape: ShapeItem,
+        rootFolder: String,
+        subBookTitle: String? = null
+    ) {
         val totalVerses = shape.chapters.sum()
         var processedVerses = 0
         val bookTitle = shape.title
@@ -34,6 +39,65 @@ class BookProcessor {
         logger.info("Processing book: $bookTitle")
 
         val chapterCommentators = mutableMapOf<Int, MutableSet<String>>()
+
+        // Fonction pour déterminer si l'offset doit être appliqué
+        suspend fun shouldApplyOffset(): Boolean {
+            val url = "$BASE_URL/v2/raw/index/${shape.book}"
+            logger.info("Fetching JSON data from URL: $url")
+
+            // Fetch the JSON string from the API
+            val jsonString = try {
+                fetchJsonFromApi(url)
+            } catch (e: Exception) {
+                logger.error("Failed to fetch data from $url: ${e.message}", e)
+                return false
+            }
+
+            logger.debug("Raw JSON response from $url: ${jsonString.take(200)}") // Log the first 200 characters of the response
+
+            // Parse the JSON string into a JsonElement
+            val jsonElement: JsonElement = try {
+                Json.parseToJsonElement(jsonString)
+            } catch (e: Exception) {
+                logger.error("Failed to parse JSON from $url: ${e.message}", e)
+                return false
+            }
+
+            logger.debug("Successfully parsed JSON data from $url")
+
+            // Navigate through the JSON structure to find "index_offsets_by_depth"
+            val schema = jsonElement.jsonObject["schema"]
+            if (schema == null) {
+                logger.warn("Key 'schema' not found in JSON from $url")
+                return false
+            }
+
+            val nodes = schema.jsonObject["nodes"]?.jsonArray
+            if (nodes == null) {
+                logger.warn("Key 'nodes' not found or is not an array in 'schema' from $url")
+                return false
+            }
+
+            val hasIndexOffsets = nodes.any { node ->
+                val containsKey = node.jsonObject.containsKey("index_offsets_by_depth")
+                logger.debug("Checking node: {}. Contains 'index_offsets_by_depth': {}", node.jsonObject, containsKey)
+                containsKey
+            }
+
+            if (hasIndexOffsets) {
+                logger.info("'index_offsets_by_depth' key exists in one or more nodes")
+            } else {
+                logger.info("'index_offsets_by_depth' key not found in any node")
+            }
+
+            return hasIndexOffsets
+        }
+
+
+        // Fonction pour calculer l'offset
+        fun calculateOffset(chapterIndex: Int): Int {
+            return shape.chapters.take(chapterIndex).sum()
+        }
 
         coroutineScope {
             val semaphore = Semaphore(20)
@@ -44,24 +108,27 @@ class BookProcessor {
                 chapterCommentators[chapterIndex] = mutableSetOf()
                 logger.info("Processing chapter $chapterNumber with $nbVerses verses")
 
+                // Calculer l'offset uniquement si nécessaire
+                val offset = if (shouldApplyOffset()) calculateOffset(chapterIndex) else 0
+
                 if (isIntroductionChapter(shape)) {
                     val task = async {
                         val verses = fetchIntroductionVerses(shape)
-                        val isTalmud = isTalmud(shape.book)
                         verses.forEachIndexed { verseIndex, verseContent ->
                             semaphore.withPermit {
                                 processIntroductionVerse(
-                                    shape.title,
-                                    chapterNumber,
-                                    verseIndex + 1,
-                                    verseContent,
-                                    shape,
-                                    chapterCommentators,
-                                    rootFolder,
-                                    isTalmud
+                                    bookTitle = shape.title,
+                                    chapterNumber = chapterNumber,
+                                    verseNumber = verseIndex + 1,
+                                    verseContent = verseContent,
+                                    shape = shape,
+                                    chapterCommentators = chapterCommentators,
+                                    rootFolder = rootFolder,
+                                    isTalmud = isTalmud,
+                                    offset = offset
                                 )
                                 synchronized(this@BookProcessor) { processedVerses++ }
-                                logger.info("Processed verse $chapterNumber:${verseIndex + 1}")
+                                logger.info("Processed verse $chapterNumber:${verseIndex + 1 + offset}")
                             }
                         }
                     }
@@ -77,14 +144,14 @@ class BookProcessor {
                         val task = async {
                             semaphore.withPermit {
                                 processStandardVerse(
-                                    shape,
-                                    bookTitle,
-                                    chapterIndex,
-                                    chapterNumber,
-                                    verseNumber,
-                                    rootFolder,
-                                    chapterCommentators,
-                                    isTalmud
+                                    shape = shape,
+                                    bookTitle = bookTitle,
+                                    chapterIndex = chapterIndex,
+                                    chapterNumber = chapterNumber,
+                                    verseNumber = verseNumber + offset, // Ajout de l'offset conditionnel
+                                    rootFolder = rootFolder,
+                                    chapterCommentators = chapterCommentators,
+                                    isTalmud = isTalmud
                                 )
                                 synchronized(this@BookProcessor) { processedVerses++ }
                                 val progress = (processedVerses.toDouble() / totalVerses * 100).toInt()
@@ -100,11 +167,18 @@ class BookProcessor {
             tasks.awaitAll()
 
             // Créer et sauvegarder l'index du livre
-            createAndSaveBookIndex(shape, chapterCommentators, rootFolder, isTalmud, subBookTitle)
+            createAndSaveBookIndex(
+                shape = shape,
+                chapterCommentators = chapterCommentators,
+                rootFolder = rootFolder,
+                isTalmud = isTalmud,
+                subBookTitle = subBookTitle, shouldApplyOffset = shouldApplyOffset()
+            )
         }
 
         logger.info("Completed processing book: $bookTitle")
     }
+
 
     private fun isIntroductionChapter(shape: ShapeItem): Boolean {
         return shape.length == 1 && shape.title.contains("Introduction")
@@ -129,17 +203,18 @@ class BookProcessor {
         shape: ShapeItem,
         chapterCommentators: MutableMap<Int, MutableSet<String>>,
         rootFolder: String,
-        isTalmud: Boolean, // Moved from inside to reduce redundant checks
+        isTalmud: Boolean,
+        offset: Int
     ) {
         val verseText = extractVerseText(verseContent)
         val endpointTitle = shape.title.replace(" ", "%20")
 
         // Fetch comments using the isTalmud flag and schema
         val comments = fetchCommentsForVerse(
-            endpointTitle,
-            chapterNumber,
-            verseNumber,
-            shape,
+            bookTitle = endpointTitle,
+            chapter = chapterNumber,
+            verse = verseNumber + offset,
+            shape = shape,
             isTalmud = isTalmud,
         )
 
@@ -151,7 +226,7 @@ class BookProcessor {
         }
 
         val verse = Verse(
-            number = verseNumber,
+            number = verseNumber + offset,
             text = verseText,
             commentary = comments.commentary,
             quotingCommentary = comments.quotingCommentary,
@@ -257,11 +332,15 @@ class BookProcessor {
         chapterCommentators: Map<Int, Set<String>>,
         rootFolder: String,
         isTalmud: Boolean,
-        subBookTitle: String? = null
+        subBookTitle: String? = null,
+        shouldApplyOffset: Boolean
     ) {
+        val cumulativeOffsets = shape.chapters.runningFold(0) { acc, nbVerses -> acc + nbVerses }
+
         val chaptersIndexList = shape.chapters.mapIndexed { chapterIndex, nbVerses ->
             ChapterIndex(
                 chapterNumber = chapterIndex + 1,
+                offset = if (shouldApplyOffset) cumulativeOffsets[chapterIndex] else 0,
                 numberOfVerses = nbVerses,
                 commentators = chapterCommentators[chapterIndex]?.toList() ?: emptyList()
             )
@@ -273,7 +352,10 @@ class BookProcessor {
             heTitle = shape.heBook,
             numberOfChapters = shape.chapters.size,
             chapters = chaptersIndexList,
-            sectionNames = translateSections(fetchBookSchema(if (shape.section.isNotEmpty()) shape.title else shape.section)?.sectionNames ?: emptyList())
+            sectionNames = translateSections(
+                fetchBookSchema(if (shape.section.isNotEmpty()) shape.title else shape.section)?.sectionNames
+                    ?: emptyList()
+            )
         )
 
         // Déterminer le répertoire où sauvegarder l'index
@@ -306,11 +388,13 @@ class BookProcessor {
                         // Continuer la récursion
                         extractSectionNames(value, sections)
                     }
+
                     is JsonArray -> {
                         value.forEach { element ->
                             extractSectionNames(element, sections)
                         }
                     }
+
                     else -> {
                         // Ignorer les autres types
                     }
@@ -333,11 +417,13 @@ class BookProcessor {
                         // Continuer la récursion
                         extractAddressTypes(value, addressTypes)
                     }
+
                     is JsonArray -> {
                         value.forEach { element ->
                             extractAddressTypes(element, addressTypes)
                         }
                     }
+
                     else -> {
                         // Ignorer les autres types
                     }

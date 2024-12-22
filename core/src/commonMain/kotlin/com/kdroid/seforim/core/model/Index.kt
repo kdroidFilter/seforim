@@ -5,14 +5,6 @@ import kotlinx.serialization.Serializable
 // Nouvelles data classes pour l'index
 
 
-
-@Serializable
-data class ChapterIndex(
-    val chapterNumber: Int,
-    val numberOfVerses: Int,
-    val commentators: List<String>
-)
-
 @Serializable
 enum class BookType {
     TALMUD, OTHER
@@ -33,6 +25,14 @@ data class BookIndex(
     val chapters: List<ChapterIndex>,
     val description: String? = null,
     val sectionNames: List<String>
+)
+
+@Serializable
+data class ChapterIndex(
+    val chapterNumber: Int,
+    val offset : Int,
+    val numberOfVerses: Int,
+    val commentators: List<String>
 )
 
 @Serializable
