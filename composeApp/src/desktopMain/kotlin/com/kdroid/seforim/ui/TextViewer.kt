@@ -12,9 +12,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import be.digitalia.compose.htmlconverter.htmlToAnnotatedString
+import com.kdroid.gematria.converter.toDafGemara
 import com.kdroid.gematria.converter.toHebrewNumeral
 import com.kdroid.seforim.constants.GENERATED_FOLDER
 import com.kdroid.seforim.core.model.BookIndex
+import com.kdroid.seforim.core.model.BookType
 import com.kdroid.seforim.core.model.CommentaryBase
 import com.kdroid.seforim.core.model.Verse
 import kotlinx.serialization.json.Json
@@ -105,8 +107,12 @@ fun BookViewScreen(bookIndex: BookIndex) {
                                 )
                                 .padding(8.dp)
                         ) {
-                            Text(
-                                text = "פרק ${chapterNumber.toHebrewNumeral()}",
+                            if (bookIndex.sectionNames.isEmpty())
+                                Text(
+                                    chapterNumber.toHebrewNumeral(), fontSize = 10.sp
+                                )
+                            else                            Text(
+                                text = "${bookIndex.sectionNames[0]} ${if(bookIndex.type == BookType.TALMUD) chapterNumber.toDafGemara() else chapterNumber.toHebrewNumeral()}",
                                 fontSize = 12.sp
                             )
                         }
@@ -143,10 +149,15 @@ fun BookViewScreen(bookIndex: BookIndex) {
                                 )
                                 .padding(8.dp)
                         ) {
-                            Text(
-                                text = "פסוק ${verseNumber.toHebrewNumeral()}",
-                                fontSize = 10.sp
-                            )
+                            if (bookIndex.sectionNames.isEmpty())
+                                Text(
+                                    verseNumber.toHebrewNumeral(), fontSize = 10.sp
+                                )
+                            else
+                                Text(
+                                    text = "${bookIndex.sectionNames[1]} ${verseNumber.toHebrewNumeral()}",
+                                    fontSize = 10.sp
+                                )
                         }
                     }
                 }

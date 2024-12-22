@@ -17,8 +17,7 @@ import java.io.File
  * Classe responsable du traitement des livres en récupérant les versets, les commentaires,
  * en sauvegardant les données et en créant des index.
  */
-class BookProcessor(
-) {
+class BookProcessor {
 
     /**
      * Orchestration principale pour traiter un livre simple.
@@ -314,7 +313,7 @@ class BookProcessor(
      * @param rootFolder Le répertoire racine où le fichier d'index sera sauvegardé.
      * @param isTalmud Booléen indiquant si le livre est un Talmud.
      */
-    private fun createAndSaveBookIndex(
+    private suspend fun createAndSaveBookIndex(
         shape: ShapeItem,
         chapterCommentators: Map<Int, Set<String>>,
         rootFolder: String,
@@ -334,7 +333,8 @@ class BookProcessor(
             title = shape.title,
             heTitle = shape.heBook,
             numberOfChapters = shape.chapters.size,
-            chapters = chaptersIndexList
+            chapters = chaptersIndexList,
+            sectionNames = translateSections(fetchBookSchema(if (shape.section.isNotEmpty()) shape.title else shape.section)?.sectionNames ?: emptyList())
         )
 
         // Déterminer le répertoire où sauvegarder l'index
@@ -354,23 +354,109 @@ class BookProcessor(
     }
 
 
-     suspend fun isTalmud(bookTitle: String): Boolean {
-        logger.info("Checking if '$bookTitle' contains 'Talmud' in addressTypes")
-        val jsonResponse = fetchJsonFromApi("$BASE_URL/v2/raw/index/$bookTitle")
-        return try {
-            val jsonElement = Json.parseToJsonElement(jsonResponse)
-            val addressTypes = jsonElement.jsonObject["schema"]?.jsonObject?.get("addressTypes")
-
-            if (addressTypes != null && addressTypes is JsonArray) {
-                val containsTalmud = addressTypes.any { it.jsonPrimitive.content == "Talmud" }
-                logger.info("Result for '$bookTitle': contains 'Talmud' = $containsTalmud")
-                containsTalmud
-            } else {
-                logger.warn("'addressTypes' is missing or not an array in the response for '$bookTitle'")
-                false
+    private fun extractSectionNames(node: JsonElement, sections: MutableSet<String>) {
+        if (node is JsonObject) {
+            node.forEach { (_, value) ->
+                when (value) {
+                    is JsonObject -> {
+                        // Vérifier si le nœud contient "sectionNames"
+                        val sectionNames = value["sectionNames"]?.jsonArray
+                        sectionNames?.forEach { section ->
+                            sections.add(section.jsonPrimitive.content)
+                        }
+                        // Continuer la récursion
+                        extractSectionNames(value, sections)
+                    }
+                    is JsonArray -> {
+                        value.forEach { element ->
+                            extractSectionNames(element, sections)
+                        }
+                    }
+                    else -> {
+                        // Ignorer les autres types
+                    }
+                }
             }
+        }
+    }
+
+    // Fonction pour extraire les addressTypes récursivement
+    private fun extractAddressTypes(node: JsonElement, addressTypes: MutableSet<String>) {
+        if (node is JsonObject) {
+            node.forEach { (_, value) ->
+                when (value) {
+                    is JsonObject -> {
+                        // Vérifier si le nœud contient "addressTypes"
+                        val types = value["addressTypes"]?.jsonArray
+                        types?.forEach { type ->
+                            addressTypes.add(type.jsonPrimitive.content)
+                        }
+                        // Continuer la récursion
+                        extractAddressTypes(value, addressTypes)
+                    }
+                    is JsonArray -> {
+                        value.forEach { element ->
+                            extractAddressTypes(element, addressTypes)
+                        }
+                    }
+                    else -> {
+                        // Ignorer les autres types
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun fetchBookSchema(bookTitle: String): BookSchema? {
+        logger.info("Fetching schema for '$bookTitle'")
+        return try {
+            val jsonResponse = fetchJsonFromApi("$BASE_URL/v2/raw/index/$bookTitle")
+            val jsonElement = Json.parseToJsonElement(jsonResponse)
+            val schema = jsonElement.jsonObject["schema"]?.jsonObject
+
+            val addressTypes = schema?.get("addressTypes")?.jsonArray?.map { it.jsonPrimitive.content }
+                ?: emptyList()
+
+            val sectionNames = schema?.let { extractSectionNames(it) } ?: emptyList()
+
+            BookSchema(addressTypes, sectionNames)
         } catch (e: Exception) {
-            logger.error("Error parsing JSON response for '$bookTitle': ${e.message}", e)
+            logger.error("Error fetching or parsing JSON for '$bookTitle': ${e.message}", e)
+            null
+        }
+    }
+
+    private fun extractSectionNames(schema: JsonObject): List<String> {
+        val sections = mutableListOf<String>()
+
+        // Vérifier si `sectionNames` est présent au niveau actuel
+        schema["sectionNames"]?.jsonArray?.map { it.jsonPrimitive.content }?.let {
+            sections.addAll(it)
+        }
+
+        // Parcourir les nœuds imbriqués
+        schema["nodes"]?.jsonArray?.forEach { node ->
+            if (node is JsonObject) {
+                sections.addAll(extractSectionNames(node))
+            } else {
+                logger.error("Unexpected element type in 'nodes': ${node::class}")
+            }
+        }
+
+        return sections
+    }
+
+
+    private suspend fun isTalmud(bookTitle: String): Boolean {
+        logger.info("Checking if '$bookTitle' contains 'Talmud' in addressTypes")
+        val schema = fetchBookSchema(bookTitle)
+
+        return if (schema != null) {
+            val containsTalmud = schema.addressTypes.contains("Talmud")
+            logger.info("Result for '$bookTitle': contains 'Talmud' = $containsTalmud")
+            containsTalmud
+        } else {
+            logger.warn("Failed to retrieve schema for '$bookTitle'")
             false
         }
     }

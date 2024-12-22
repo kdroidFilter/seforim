@@ -8,6 +8,8 @@ data class Book(
     val chapters: List<Chapter>
 )
 
+
+
 @Serializable
 data class Chapter(
     val number: Int,

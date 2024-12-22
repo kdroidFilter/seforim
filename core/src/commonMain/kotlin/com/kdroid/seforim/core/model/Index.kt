@@ -4,6 +4,8 @@ import kotlinx.serialization.Serializable
 
 // Nouvelles data classes pour l'index
 
+
+
 @Serializable
 data class ChapterIndex(
     val chapterNumber: Int,
@@ -17,13 +19,20 @@ enum class BookType {
 }
 
 @Serializable
+data class BookSchema(
+    val addressTypes: List<String>,
+    val sectionNames: List<String>
+)
+
+@Serializable
 data class BookIndex(
     val type: BookType = BookType.OTHER,
     val title: String,
     val heTitle: String,
     val numberOfChapters: Int,
     val chapters: List<ChapterIndex>,
-    val description: String? = null
+    val description: String? = null,
+    val sectionNames: List<String>
 )
 
 @Serializable
