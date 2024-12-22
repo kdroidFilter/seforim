@@ -54,7 +54,7 @@ fun main() {
                         Column(
                             Modifier.trackActivation().fillMaxSize().background(JewelTheme.globalColors.panelBackground)
                         ) {
-                            SplitLayouts("Tur, Orach Chaim")
+                            SplitLayouts("Horayot")
                         }
                     },
                 )

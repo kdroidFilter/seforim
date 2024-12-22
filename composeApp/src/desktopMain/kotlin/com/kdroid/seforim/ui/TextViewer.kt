@@ -19,7 +19,12 @@ import com.kdroid.seforim.core.model.BookIndex
 import com.kdroid.seforim.core.model.BookType
 import com.kdroid.seforim.core.model.CommentaryBase
 import com.kdroid.seforim.core.model.Verse
+import kotlinx.io.IOException
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.protobuf.ProtoBuf
 import org.jetbrains.jewel.foundation.lazy.SelectableLazyColumn
 import org.jetbrains.jewel.foundation.lazy.SelectionMode
 import org.jetbrains.jewel.foundation.lazy.rememberSelectableLazyListState
@@ -33,7 +38,10 @@ fun loadBookIndex(bookTitle: String): BookIndex {
     val path = "../database/$GENERATED_FOLDER/$bookTitle/index.json"
     val file = File(path)
     val indexJson = file.readText()
-    return Json.decodeFromString<BookIndex>(indexJson)
+    val json = Json {
+        ignoreUnknownKeys = true
+    }
+    return json.decodeFromString<BookIndex>(indexJson)
 }
 
 
@@ -60,7 +68,7 @@ fun BookViewScreen(bookIndex: BookIndex) {
             .filter { it >= 0 }
     }
 
-    // List of verses for the selected chapter, adjusted for offset
+//     List of verses for the selected chapter, adjusted for offset
     val verses = remember(currentChapter, bookIndex) {
         bookIndex.chapters
             .firstOrNull { it.chapterNumber == currentChapter }
@@ -179,12 +187,37 @@ fun BookViewScreen(bookIndex: BookIndex) {
     }
 }
 
-fun loadVerse(bookTitle: String, chapter: Int, verse: Int): Verse {
-    // Use the adjusted verse number (with offset) for the file path
+fun loadVerse(bookTitle: String, chapter: Int, verse: Int): Verse? {
     val path = "../database/$GENERATED_FOLDER/$bookTitle/$chapter/$verse.json"
     val file = File(path)
-    val verseJson = file.readText()
-    return Json.decodeFromString<Verse>(verseJson)
+
+    return try {
+        val verseJson = file.readText()
+        Json.decodeFromString<Verse>(verseJson)
+    } catch (e: IOException) {
+        println("Error reading file at $path: ${e.message}")
+        null
+    } catch (e: SerializationException) {
+        println("Error parsing JSON for Verse at $path: ${e.message}")
+        null
+    }
+}
+
+@OptIn(ExperimentalSerializationApi::class)
+internal fun loadVerseFromProto(bookTitle: String, chapter: Int, verse: Int): Verse? {
+    val path = "../database/$GENERATED_FOLDER/$bookTitle/$chapter/$verse.proto"
+    val file = File(path)
+
+    return try {
+        val protoData = file.readBytes() // Lit les données binaires du fichier
+        ProtoBuf.decodeFromByteArray<Verse>(protoData) // Désérialise les données Protobuf en objet `Verse`
+    } catch (e: IOException) {
+        println("Error reading file at $path: ${e.message}")
+        null
+    } catch (e: SerializationException) {
+        println("Error parsing Protobuf for Verse at $path: ${e.message}")
+        null
+    }
 }
 
 @Composable
@@ -219,10 +252,10 @@ fun VerseScreen(verse: Verse) {
                 // Display each commentary in this section
                 commentList.forEach { commentary ->
                     item {
-                        Text("— ${commentary.commentatorName}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("— ${commentary.commentator.name}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         commentary.texts.forEach { text ->
                             Text(
-                                text = remember(text) { htmlToAnnotatedString(text) },
+                                text = remember(text) { htmlToAnnotatedString(text.text) },
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Justify,
                                 fontSize = 13.sp

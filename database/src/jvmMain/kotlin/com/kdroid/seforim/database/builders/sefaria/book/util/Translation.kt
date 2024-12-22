@@ -8,7 +8,8 @@ private val traductionMap = mapOf(
     "Chapter" to "פרק",
     "Verse" to "פסוק",
     "Siman" to "סימן",
-    "Seif" to "סעיף"
+    "Seif" to "סעיף",
+    "Comment" to "פירוש"
 )
 
 internal fun translateSection(input: String): String {

@@ -4,6 +4,11 @@ import kotlinx.serialization.Serializable
 
 // Nouvelles data classes pour l'index
 
+@Serializable
+data class PathResponse(
+    val title: String,
+    val categories: List<String>
+)
 
 @Serializable
 enum class BookType {

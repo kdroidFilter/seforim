@@ -10,6 +10,7 @@ enum class CommentaryType {
     OTHER_LINKS
 }
 
+
 @Serializable
 data class CommentaryResponse(
     val commentary: List<Commentary> = emptyList(),
@@ -20,38 +21,51 @@ data class CommentaryResponse(
 )
 
 @Serializable
+data class Commentator(
+    val name: String,
+    val path: String
+)
+
+@Serializable
+data class TextWithRef(
+    val text: String,
+    val ref: String
+)
+
+
+@Serializable
 sealed class CommentaryBase {
-    abstract val commentatorName: String
-    abstract val texts: List<String>
+    abstract val commentator: Commentator
+    abstract val texts: List<TextWithRef>
 }
 
 @Serializable
 data class Commentary(
-    override val commentatorName: String,
-    override val texts: List<String>
+    override val commentator: Commentator,
+    override val texts: List<TextWithRef>
 ) : CommentaryBase()
 
 @Serializable
 data class Targum(
-    override val commentatorName: String,
-    override val texts: List<String>
+    override val commentator: Commentator,
+    override val texts: List<TextWithRef>
 ) : CommentaryBase()
-
 
 @Serializable
 data class QuotingCommentary(
-    override val commentatorName: String,
-    override val texts: List<String>
+    override val commentator: Commentator,
+    override val texts: List<TextWithRef>
 ) : CommentaryBase()
 
 @Serializable
 data class Reference(
-    override val commentatorName: String,
-    override val texts: List<String>
+    override val commentator: Commentator,
+    override val texts: List<TextWithRef>
 ) : CommentaryBase()
 
 @Serializable
 data class OtherLinks(
-    override val commentatorName: String,
-    override val texts: List<String>
+    override val commentator: Commentator,
+    override val texts: List<TextWithRef>
 ) : CommentaryBase()
+

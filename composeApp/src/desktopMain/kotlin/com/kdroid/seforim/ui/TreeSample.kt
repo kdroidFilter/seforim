@@ -60,6 +60,7 @@ internal fun buildDirectoryNodeTree(treeBuilder: ChildrenGeneratorScope<Director
     }
 }
 
+@OptIn(ExperimentalJewelApi::class)
 @Composable
 fun DisplayTree() {
     var tree by remember { mutableStateOf<Tree<DirectoryNode>>(emptyTree()) }

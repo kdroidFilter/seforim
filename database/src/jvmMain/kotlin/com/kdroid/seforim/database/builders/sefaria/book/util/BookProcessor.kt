@@ -57,7 +57,7 @@ class BookProcessor {
 
             // Parse the JSON string into a JsonElement
             val jsonElement: JsonElement = try {
-                Json.parseToJsonElement(jsonString)
+                json.parseToJsonElement(jsonString)
             } catch (e: Exception) {
                 logger.error("Failed to parse JSON from $url: ${e.message}", e)
                 return false
@@ -102,6 +102,7 @@ class BookProcessor {
         coroutineScope {
             val semaphore = Semaphore(20)
             val tasks = mutableListOf<Deferred<Unit>>()
+            val applyOffset = shouldApplyOffset()
 
             shape.chapters.forEachIndexed { chapterIndex, nbVerses ->
                 val chapterNumber = chapterIndex + 1
@@ -109,7 +110,7 @@ class BookProcessor {
                 logger.info("Processing chapter $chapterNumber with $nbVerses verses")
 
                 // Calculer l'offset uniquement si nécessaire
-                val offset = if (shouldApplyOffset()) calculateOffset(chapterIndex) else 0
+                val offset = if (applyOffset) calculateOffset(chapterIndex) else 0
 
                 if (isIntroductionChapter(shape)) {
                     val task = async {
@@ -221,7 +222,7 @@ class BookProcessor {
         // Ensure chapterCommentators is initialized for this chapter
         chapterCommentators.getOrPut(chapterNumber - 1) { mutableSetOf() }.also { commentators ->
             comments.commentary.forEach { commentary ->
-                commentators.add(commentary.commentatorName)
+                commentators.add(commentary.commentator.name)
             }
         }
 
@@ -269,7 +270,7 @@ class BookProcessor {
         )
 
         comments.commentary.forEach { commentary ->
-            chapterCommentators[chapterIndex]?.add(commentary.commentatorName)
+            chapterCommentators[chapterIndex]?.add(commentary.commentator.name)
         }
 
         val verse = Verse(

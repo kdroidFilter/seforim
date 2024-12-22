@@ -10,8 +10,11 @@ import com.kdroid.seforim.database.builders.sefaria.book.model.ShapeItem
 import com.kdroid.seforim.database.common.config.json
 import com.kdroid.seforim.database.common.constants.BASE_URL
 import com.kdroid.seforim.database.common.constants.BLACKLIST
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.json.*
+import kotlinx.serialization.protobuf.ProtoBuf
 import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.collections.component1
@@ -79,6 +82,25 @@ internal fun saveVerse(bookTitle: String, chapter: Int, verseNumber: Int, verse:
     verseFile.writeText(json.encodeToString(verse))
 }
 
+@OptIn(ExperimentalSerializationApi::class)
+internal fun saveVerseAsProto(bookTitle: String, chapter: Int, verseNumber: Int, verse: Verse, rootFolder: String) {
+    val verseDir = File("$rootFolder/$bookTitle/$chapter")
+    if (!verseDir.exists()) verseDir.mkdirs()
+
+    val verseFile = File(verseDir, "$verseNumber.proto")
+    val protoData = ProtoBuf.encodeToByteArray(verse)
+    verseFile.writeBytes(protoData)
+}
+
+internal fun String.removeLastSegment(): String {
+    val parts = this.split(":")
+    return if (parts.size > 2) {
+        parts.dropLast(1).joinToString(":")
+    } else {
+        this
+    }
+}
+
 internal suspend fun fetchCommentsForVerse(
     bookTitle: String,
     chapter: Int,
@@ -104,6 +126,7 @@ internal suspend fun fetchCommentsForVerse(
         logger.info("Failed to parse JSON for comments from $commentsUrl: ${e.message}")
         return CommentaryResponse(
             commentary = emptyList(),
+            targum = emptyList(),
             quotingCommentary = emptyList(),
             reference = emptyList(),
             otherLinks = emptyList()
@@ -116,6 +139,7 @@ internal suspend fun fetchCommentsForVerse(
         logger.info("Skipping comments for verse $chapter:$verse due to error: $errorMsg")
         return CommentaryResponse(
             commentary = emptyList(),
+            targum = emptyList(),
             quotingCommentary = emptyList(),
             reference = emptyList(),
             otherLinks = emptyList()
@@ -129,31 +153,34 @@ internal suspend fun fetchCommentsForVerse(
         logger.info("Failed to deserialize comments for verse $chapter:$verse: ${e.message}")
         return CommentaryResponse(
             commentary = emptyList(),
+            targum = emptyList(),
             quotingCommentary = emptyList(),
             reference = emptyList(),
             otherLinks = emptyList()
         )
     }
 
-    // We retrieve the common list, only with the 'he' field
+    // Process the comments
     val allCommentaries = commentsList
         .filterNot { BLACKLIST.contains(it.index_title) }
         .groupBy { it.collectiveTitle.he ?: "Unknown" }
-        .mapNotNull { (commentator, groupedComments) ->
-            val heTexts = groupedComments.flatMap { commentItem ->
-                listOfNotNull(
-                    // Exclure le champ 'text' et ne traiter que 'he'
-                    when (val he = commentItem.he) {
-                        is JsonArray -> he.joinToString(" ") { it.jsonPrimitive.content }
-                        is JsonPrimitive -> he.contentOrNull
-                        else -> null
-                    }
-                ).filter { it.isNotEmpty() }
-            }
+        .mapNotNull { (commentatorName, groupedComments) ->
+            val path = groupedComments.firstOrNull()?.index_title ?: "Unknown Path"
 
-            if (heTexts.isNotEmpty()) {
-                val firstCategory = groupedComments.firstOrNull()?.category ?: ""
-                val commentaryType = when (firstCategory.lowercase()) {
+            // Extraire les textes avec leur référence
+            val textsWithRef = groupedComments.mapNotNull { commentItem ->
+                val ref = (commentItem.sourceRef).removePrefix(path).trim().removeLastSegment().replace(":", "/") //J'adapte la source a la structure de ma bdd en locale pour pointer directement vers le fichier cible
+                val text = when (val he = commentItem.he) {
+                    is JsonArray -> he.joinToString(" ") { it.jsonPrimitive.content }
+                    is JsonPrimitive -> he.contentOrNull
+                    else -> null
+                }
+                if (text != null) TextWithRef(text = text, ref = ref) else null
+            }.filter { it.text.isNotEmpty() }
+
+            if (textsWithRef.isNotEmpty()) {
+                val firstCategory = groupedComments.firstOrNull()?.category?.lowercase() ?: ""
+                val commentaryType = when (firstCategory) {
                     "commentary" -> COMMENTARY
                     "targum" -> TARGUM
                     "quoting commentary" -> QUOTING_COMMENTARY
@@ -161,29 +188,46 @@ internal suspend fun fetchCommentsForVerse(
                     else -> OTHER_LINKS
                 }
 
+
+                suspend fun fetchAndFormatCategories(commentatorName: String): String {
+                    val url = "$BASE_URL/v2/raw/index/${commentatorName.replace(" ", "%20")}"
+                    val jsonString = fetchJsonFromApi(url)
+                    return try {
+                        val response = json.decodeFromString<PathResponse>(jsonString)
+                        response.categories.joinToString("/")
+                    } catch (e: SerializationException) {
+                        logger.error("Failed to parse JSON: ${e.message}", e)
+                        ""
+                    }
+                }
+
+                val commentator = Commentator(name = commentatorName, path = "${fetchAndFormatCategories(path)}/$path")
+
                 when (commentaryType) {
                     COMMENTARY -> Commentary(
-                        commentatorName = commentator,
-                        texts = heTexts
+                        commentator = commentator,
+                        texts = textsWithRef
                     )
                     TARGUM -> Targum(
-                        commentatorName = commentator,
-                        texts = heTexts
+                        commentator = commentator,
+                        texts = textsWithRef
                     )
                     QUOTING_COMMENTARY -> QuotingCommentary(
-                        commentatorName = commentator,
-                        texts = heTexts
+                        commentator = commentator,
+                        texts = textsWithRef
                     )
                     REFERENCE -> Reference(
-                        commentatorName = commentator,
-                        texts = heTexts
+                        commentator = commentator,
+                        texts = textsWithRef
                     )
                     else -> OtherLinks(
-                        commentatorName = commentator,
-                        texts = heTexts
+                        commentator = commentator,
+                        texts = textsWithRef
                     )
                 }
-            } else null
+            } else {
+                null
+            }
         }
 
     // Distribute by type
@@ -202,3 +246,4 @@ internal suspend fun fetchCommentsForVerse(
         otherLinks = otherList
     )
 }
+

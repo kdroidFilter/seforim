@@ -5,7 +5,7 @@ import com.kdroid.seforim.database.builders.sefaria.book.util.buildBookFromShape
 import com.kdroid.seforim.database.builders.sefaria.book.util.logger
 
 suspend fun main() {
-    val bookTitle = "Tur"
+    val bookTitle = "Chiddushei Rabbi Akiva Eiger on Berakhot"
     logger.info("Starting to build book: $bookTitle")
     buildBookFromShape(bookTitle, GENERATED_FOLDER)
 }

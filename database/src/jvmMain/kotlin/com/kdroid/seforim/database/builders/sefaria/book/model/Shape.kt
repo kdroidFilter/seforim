@@ -32,82 +32,52 @@ internal data class FlexibleShapeItem(
     val heTitle: String,
     val title: String,
     val length: Int,
-    val chapters: JsonElement, // Peut être un nombre, une liste d'entiers ou une liste de listes
+    val chapters: JsonElement,
     val book: String,
     val heBook: String
 ) {
-//    fun toShapeItem(logger: Logger): ShapeItem {
-//        return when {
-//            chapters is JsonArray -> {
-//                val chapList = chapters.jsonArray.mapNotNull { element ->
-//                    when (element) {
-//                        is JsonPrimitive -> {
-//                            val chapterCount = element.intOrNull
-//                            if (chapterCount == null) {
-//                                logger.debug("Élément de chapitre non entier: {}", element)
-//                            }
-//                            chapterCount
-//                        }
-//                        is JsonArray -> {
-//                            val sum = element.jsonArray.mapNotNull { it.jsonPrimitive.intOrNull }.sum()
-//                            if (sum == 0) {
-//                                logger.debug("Liste de chapitres avec somme de versets 0: {}", element)
-//                            }
-//                            sum.takeIf { it > 0 }
-//                        }
-//                        else -> {
-//                            logger.debug("Type d'élément de chapitre inattendu: ${element::class.simpleName}")
-//                            null
-//                        }
-//                    }
-//                }
-//                ShapeItem(section, heTitle, title, length, chapList, book, heBook)
-//            }
-//            chapters is JsonPrimitive && chapters.jsonPrimitive.intOrNull != null -> {
-//                val singleChapter = chapters.jsonPrimitive.int
-//                // Convertir en liste d’un seul élément
-//                ShapeItem(section, heTitle, title, length, listOf(singleChapter), book, heBook)
-//            }
-//            else -> {
-//                logger.debug("Format du champ 'chapters' non supporté pour '{}': {}", title, chapters)
-//                ShapeItem(section, heTitle, title, length, emptyList(), book, heBook) // Retourne une liste vide ou adaptez selon vos besoins
-//            }
-//        }
-//    }
-fun toShapeItem(logger: Logger): ShapeItem {
-    return when {
-        chapters is JsonArray -> {
-            val chapList = chapters.jsonArray.flatMap { element ->
-                when (element) {
-                    is JsonPrimitive -> {
-                        val chapterCount = element.intOrNull
-                        if (chapterCount != null) listOf(chapterCount) else {
-                            logger.debug("Élément de chapitre non entier: {}", element)
-                            emptyList()
-                        }
-                    }
-                    is JsonArray -> {
-                        element.jsonArray.mapNotNull { it.jsonPrimitive.intOrNull }
-                    }
-                    else -> {
-                        logger.debug("Type d'élément de chapitre inattendu: ${element::class.simpleName}")
-                        emptyList()
-                    }
-                }
-            }.filter { it > 0 } // Filtrer les chapitres avec 0 versets si nécessaire
 
-            ShapeItem(section, heTitle, title, length, chapList, book, heBook)
-        }
-        chapters is JsonPrimitive && chapters.jsonPrimitive.intOrNull != null -> {
-            val singleChapter = chapters.jsonPrimitive.int
-            // Convertir en liste d’un seul élément
-            ShapeItem(section, heTitle, title, length, listOf(singleChapter), book, heBook)
-        }
-        else -> {
-            logger.debug("Format du champ 'chapters' non supporté pour '{}': {}", title, chapters)
-            ShapeItem(section, heTitle, title, length, emptyList(), book, heBook) // Retourne une liste vide ou adaptez selon vos besoins
+    fun toShapeItem(logger: Logger): ShapeItem {
+        return when {
+            chapters is JsonArray -> {
+                // Vérifier si chaque élément de 'chapters' est un JsonPrimitive (structure simple)
+                if (chapters.jsonArray.all { it is JsonPrimitive && it.jsonPrimitive.intOrNull != null }) {
+                    // Structure simple : liste d'entiers représentant le nombre de versets par chapitre
+                    val chapList = chapters.jsonArray.mapNotNull { it.jsonPrimitive.intOrNull }
+                        .filter { it > 0 } // Filtrer les chapitres avec 0 versets si nécessaire
+                    ShapeItem(section, heTitle, title, length, chapList, book, heBook)
+                }
+                // Vérifier si chaque élément de 'chapters' est un JsonArray (structure complexe)
+                else if (chapters.jsonArray.all { it is JsonArray }) {
+                    // Structure complexe : liste de listes représentant les versets dans chaque chapitre
+                    val chapList = chapters.jsonArray.map { chapterElement ->
+                        if (chapterElement is JsonArray) {
+                            chapterElement.size // Nombre de versets dans le chapitre
+                        } else {
+                            logger.debug("Type inattendu dans les chapitres : ${chapterElement::class.simpleName}")
+                            0
+                        }
+                    }.filter { it > 0 } // Filtrer les chapitres avec 0 versets si nécessaire
+                    ShapeItem(section, heTitle, title, length, chapList, book, heBook)
+                }
+                // Structure mixte ou inattendue
+                else {
+                    logger.debug("Structure inattendue pour 'chapters' dans '{}' : {}", title, chapters)
+                    ShapeItem(section, heTitle, title, length, emptyList(), book, heBook)
+                }
+            }
+            // Si 'chapters' est un JsonPrimitive avec une valeur entière
+            chapters is JsonPrimitive && chapters.jsonPrimitive.intOrNull != null -> {
+                val singleChapter = chapters.jsonPrimitive.int
+                ShapeItem(section, heTitle, title, length, listOf(singleChapter), book, heBook)
+            }
+            // Format non supporté
+            else -> {
+                logger.debug("Format non supporté pour le champ 'chapters' dans '{}' : {}", title, chapters)
+                ShapeItem(section, heTitle, title, length, emptyList(), book, heBook)
+            }
         }
     }
-}
+
 
 }
