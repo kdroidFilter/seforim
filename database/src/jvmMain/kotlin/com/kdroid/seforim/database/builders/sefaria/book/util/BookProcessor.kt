@@ -45,9 +45,9 @@ class BookProcessor {
                 logger.info("Processing chapter $chapterNumber with $nbVerses verses")
 
                 if (isIntroductionChapter(shape)) {
-                    // Cas spécial : chapitre d'introduction
                     val task = async {
                         val verses = fetchIntroductionVerses(shape)
+                        val isTalmud = isTalmud(shape.book)
                         verses.forEachIndexed { verseIndex, verseContent ->
                             semaphore.withPermit {
                                 processIntroductionVerse(
@@ -57,7 +57,8 @@ class BookProcessor {
                                     verseContent,
                                     shape,
                                     chapterCommentators,
-                                    rootFolder
+                                    rootFolder,
+                                    isTalmud
                                 )
                                 synchronized(this@BookProcessor) { processedVerses++ }
                                 logger.info("Processed verse $chapterNumber:${verseIndex + 1}")
@@ -105,19 +106,10 @@ class BookProcessor {
         logger.info("Completed processing book: $bookTitle")
     }
 
-    /**
-     * Détermine si le chapitre actuel est une introduction.
-     */
     private fun isIntroductionChapter(shape: ShapeItem): Boolean {
         return shape.length == 1 && shape.title.contains("Introduction")
     }
 
-    /**
-     * Récupère les versets pour un chapitre d'introduction sans numérotation des versets.
-     *
-     * @param shape L'objet ShapeItem représentant la structure du livre.
-     * @return Une liste de JsonElement représentant les versets.
-     */
     private suspend fun fetchIntroductionVerses(shape: ShapeItem): List<JsonElement> {
         val endpointTitle = shape.title.replace(" ", "%20")
         val textUrl = "$BASE_URL/v3/texts/$endpointTitle"
@@ -129,17 +121,6 @@ class BookProcessor {
             ?.jsonObject?.get("text")?.jsonArray?.toList() ?: emptyList()
     }
 
-    /**
-     * Traite un seul verset dans un chapitre d'introduction.
-     *
-     * @param bookTitle Le titre du livre.
-     * @param chapterNumber Le numéro du chapitre.
-     * @param verseNumber Le numéro du verset.
-     * @param verseContent L'élément JSON contenant le contenu du verset.
-     * @param shape L'objet ShapeItem représentant la structure du livre.
-     * @param chapterCommentators Map des indices de chapitre aux ensembles de noms de commentateurs.
-     * @param rootFolder Le répertoire racine où les données seront sauvegardées.
-     */
     private suspend fun processIntroductionVerse(
         bookTitle: String,
         chapterNumber: Int,
@@ -147,21 +128,26 @@ class BookProcessor {
         verseContent: JsonElement,
         shape: ShapeItem,
         chapterCommentators: MutableMap<Int, MutableSet<String>>,
-        rootFolder: String
+        rootFolder: String,
+        isTalmud: Boolean, // Moved from inside to reduce redundant checks
     ) {
         val verseText = extractVerseText(verseContent)
         val endpointTitle = shape.title.replace(" ", "%20")
 
+        // Fetch comments using the isTalmud flag and schema
         val comments = fetchCommentsForVerse(
             endpointTitle,
             chapterNumber,
             verseNumber,
             shape,
-            isTalmud = isTalmud(shape.book)
+            isTalmud = isTalmud,
         )
 
-        comments.commentary.forEach { commentary ->
-            chapterCommentators[chapterNumber - 1]?.add(commentary.commentatorName)
+        // Ensure chapterCommentators is initialized for this chapter
+        chapterCommentators.getOrPut(chapterNumber - 1) { mutableSetOf() }.also { commentators ->
+            comments.commentary.forEach { commentary ->
+                commentators.add(commentary.commentatorName)
+            }
         }
 
         val verse = Verse(
@@ -176,18 +162,6 @@ class BookProcessor {
         saveVerse(bookTitle, chapterNumber, verseNumber, verse, rootFolder)
     }
 
-    /**
-     * Traite un seul verset dans un chapitre standard.
-     *
-     * @param shape L'objet ShapeItem représentant la structure du livre.
-     * @param bookTitle Le titre du livre.
-     * @param chapterIndex L'indice du chapitre.
-     * @param chapterNumber Le numéro du chapitre.
-     * @param verseNumber Le numéro du verset.
-     * @param rootFolder Le répertoire racine où les données seront sauvegardées.
-     * @param chapterCommentators Map des indices de chapitre aux ensembles de noms de commentateurs.
-     * @param isTalmud Booléen indiquant si le livre est un Talmud.
-     */
     @Suppress("DefaultLocale")
     private suspend fun processStandardVerse(
         shape: ShapeItem,
@@ -236,14 +210,6 @@ class BookProcessor {
         saveVerse(bookTitle, chapterNumber, verseNumber, verse, rootFolder)
     }
 
-    /**
-     * Analyse une chaîne JSON en un JsonObject. Enregistre un message et retourne null si l'analyse échoue
-     * ou si le JSON contient une erreur.
-     *
-     * @param jsonString La chaîne JSON à analyser.
-     * @param context Une description du contexte pour les messages de journalisation.
-     * @return Le JsonObject analysé ou null si l'analyse échoue ou contient une erreur.
-     */
     private fun parseJsonOrNull(jsonString: String, context: String): JsonObject? {
         return try {
             val parsed = json.parseToJsonElement(jsonString).jsonObject
@@ -260,14 +226,6 @@ class BookProcessor {
         }
     }
 
-    /**
-     * Désérialise la réponse JSON en un objet VerseResponse. Enregistre un message et retourne null en cas d'échec.
-     *
-     * @param jsonString La chaîne JSON à désérialiser.
-     * @param chapterNumber Le numéro du chapitre pour les messages de journalisation.
-     * @param verseNumber Le numéro du verset pour les messages de journalisation.
-     * @return L'objet VerseResponse désérialisé ou null en cas d'échec.
-     */
     private fun decodeVerseResponseOrNull(jsonString: String, chapterNumber: Int, verseNumber: Int): VerseResponse? {
         return try {
             json.decodeFromString<VerseResponse>(jsonString)
@@ -277,12 +235,7 @@ class BookProcessor {
         }
     }
 
-    /**
-     * Extrait le texte du verset à partir d'un JsonElement.
-     *
-     * @param verseContent L'élément JSON contenant le contenu du verset.
-     * @return Le texte du verset extrait.
-     */
+
     private fun extractVerseText(verseContent: JsonElement): String {
         return when (verseContent) {
             is JsonPrimitive -> verseContent.content
@@ -291,12 +244,6 @@ class BookProcessor {
         }
     }
 
-    /**
-     * Extrait le texte du verset à partir d'un objet VerseResponse.
-     *
-     * @param verseResponse L'objet VerseResponse.
-     * @return Le texte du verset extrait.
-     */
     private fun extractVerseText(verseResponse: VerseResponse): String {
         return when (val textElement = verseResponse.versions.firstOrNull()?.text) {
             is JsonPrimitive -> textElement.content
@@ -305,14 +252,6 @@ class BookProcessor {
         }
     }
 
-    /**
-     * Crée et sauvegarde le fichier d'index du livre au format JSON.
-     *
-     * @param shape L'objet ShapeItem représentant la structure du livre.
-     * @param chapterCommentators Map des indices de chapitre aux ensembles de noms de commentateurs.
-     * @param rootFolder Le répertoire racine où le fichier d'index sera sauvegardé.
-     * @param isTalmud Booléen indiquant si le livre est un Talmud.
-     */
     private suspend fun createAndSaveBookIndex(
         shape: ShapeItem,
         chapterCommentators: Map<Int, Set<String>>,
@@ -461,11 +400,6 @@ class BookProcessor {
         }
     }
 
-    /**
-     * Convertit un numéro de chapitre en entier Guemara si applicable.
-     *
-     * @return Le numéro de chapitre converti.
-     */
     private fun Int.toGuemaraInt(): String {
         val numberPart = (this + 1) / 2 + 1
         val suffix = if (this % 2 == 1) "a" else "b"

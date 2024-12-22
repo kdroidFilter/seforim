@@ -21,14 +21,6 @@ import kotlin.collections.component2
 internal val logger = LoggerFactory.getLogger("BookBuilderUtil")
 
 
-/**
- * Builds a book structure based on the specified title and saves it in the specified root folder.
- * This function retrieves book data through an API call, processes its structure,
- * and handles both complex and simple book structures accordingly.
- *
- * @param bookTitle The title of the book to be processed. Spaces in the title will be encoded to "%20".
- * @param rootFolder The root folder path where the book data will be processed and saved.
- */
 internal suspend fun buildBookFromShape(bookTitle: String, rootFolder: String) {
     val encodedTitle = bookTitle.replace(" ", "%20")
     logger.info("Fetching shape for book: $bookTitle")
@@ -52,14 +44,6 @@ internal suspend fun buildBookFromShape(bookTitle: String, rootFolder: String) {
     }
 }
 
-/**
- * Processes a `ComplexShapeItem` by iterating through its chapters, decoding them into `FlexibleShapeItem`,
- * converting them into `ShapeItem`, and subsequently processing them as simple books.
- *
- * @param complexBook The `ComplexShapeItem` instance containing details about the book, its chapters,
- *                    and metadata to be processed.
- * @param rootFolder  The root folder path where processed outputs or related data may be stored.
- */
 private suspend fun processComplexBook(complexBook: ComplexShapeItem, rootFolder: String) {
     // For each item in complexBook.chapters, decode to FlexibleShapeItem
     // Then call toShapeItem() to get a standard ShapeItem.
@@ -87,16 +71,6 @@ private fun Int.toGuemaraInt(): String {
     return "$numberPart$suffix"
 }
 
-
-/**
- * Saves a verse to a JSON file in a directory structure based on the book title and chapter number.
- *
- * @param bookTitle The title of the book to which the verse belongs.
- * @param chapter The chapter number in which the verse is found.
- * @param verseNumber The number of the verse within the chapter.
- * @param verse The verse object containing the text and associated metadata.
- * @param rootFolder The root folder where the book's data directory is located.
- */
 internal fun saveVerse(bookTitle: String, chapter: Int, verseNumber: Int, verse: Verse, rootFolder : String) {
     val verseDir = File("$rootFolder/$bookTitle/$chapter")
     if (!verseDir.exists()) verseDir.mkdirs()
@@ -105,21 +79,6 @@ internal fun saveVerse(bookTitle: String, chapter: Int, verseNumber: Int, verse:
     verseFile.writeText(json.encodeToString(verse))
 }
 
-/**
- * Fetches and formats comments related to a specific verse from an external data source.
- * This method builds a formatted URL based on the input parameters, fetches JSON data from the endpoint,
- * and processes it to organize the comments into structured categories like Commentary, Quoting Commentary,
- * Reference, and Other Links.
- *
- * If the JSON response cannot be parsed or contains an error field, it returns an empty `CommentaryResponse` object.
- *
- * @param bookTitle The title of the book (e.g., "Genesis"). Spaces in the title are URL-encoded.
- * @param chapter The chapter number of the requested verse.
- * @param verse The verse number in the requested chapter.
- * @param shape The shape object containing metadata about the book and its structure.
- *
- * @return A `CommentaryResponse` object containing categorized commentaries for the specified verse.
- */
 internal suspend fun fetchCommentsForVerse(
     bookTitle: String,
     chapter: Int,
