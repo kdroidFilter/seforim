@@ -21,14 +21,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 /**
- * Creates directories and files based on the provided Table of Content (ToC) structure.
- * This function initializes a root directory, processes each category in the ToC to create directories,
- * and generates index files in JSON and Protobuf formats. Optionally, book-related files can also be created.
- *
- * @param rootPath The path to the root directory where directories and files will be created.
- * @param tree A list of TableOfContent objects representing the structure of categories and their contents.
- * @param createBooks A boolean flag indicating whether book-related files should be created.
- *                    Defaults to true.
+ * Crée des répertoires et des fichiers basés sur la structure fournie du Table of Content (ToC).
  */
 suspend fun createDirectoriesAndFilesWithIndex(rootPath: String, tree: List<TableOfContent>, createBooks: Boolean = true) {
     val logger = LoggerFactory.getLogger("DirectoryCreator")
@@ -36,93 +29,71 @@ suspend fun createDirectoriesAndFilesWithIndex(rootPath: String, tree: List<Tabl
     val rootDir = initializeRootDirectory(rootPath, logger) ?: return
 
     val rootNodes = tree.mapNotNull { toc ->
-        processCategory(toc, rootDir, rootPath, createBooks, logger)
+        processCategory(toc, rootDir, rootDir, createBooks, logger) // Passer rootDir comme rootPath
     }
 
     createIndexFiles(rootDir, rootNodes, logger)
 }
 
+
 /**
- * Initializes the root directory at the specified path. If the directory does not exist, it attempts to create it.
- * Logs the appropriate messages for directory creation success or failure.
- *
- * @param rootPath The path to the root directory that needs to be initialized.
- * @param logger The logger instance used to log messages during the initialization process.
- * @return The initialized `File` object for the root directory if the directory exists or is successfully created,
- *         or `null` if the directory creation fails.
+ * Initialise le répertoire racine.
  */
 private fun initializeRootDirectory(rootPath: String, logger: Logger): File? {
     val rootDir = File(rootPath)
     if (!rootDir.exists()) {
         if (rootDir.mkdirs()) {
-            logger.info("Root directory created: ${rootDir.path}")
+            logger.info("Répertoire racine créé : ${rootDir.path}")
         } else {
-            logger.error("Unable to create the root directory: ${rootDir.path}")
+            logger.error("Impossible de créer le répertoire racine : ${rootDir.path}")
             return null
         }
     }
     return rootDir
 }
 
+
 /**
- * Processes a category within a Table of Content (ToC) structure, creates the required directory for the category,
- * and processes its contents to generate a corresponding node representation.
- *
- * @param toc The TableOfContent object containing details of the category and its contents.
- * @param rootDir The root directory where the category directory will be created.
- * @param rootPath The path to the root directory, used for relative path calculations.
- * @param createBooks A boolean indicating whether book-related files should be processed.
- * @param logger The logger used for logging operations and warnings during processing.
- * @return A DirectoryNode representing the processed category and its contents, or null if no contents were processed.
+ * Traite une catégorie dans le ToC.
  */
 private suspend fun processCategory(
     toc: TableOfContent,
     rootDir: File,
-    rootPath: String,
+    rootPath: File, // Utiliser File au lieu de String pour rootPath
     createBooks: Boolean,
     logger: Logger
 ): DirectoryNode? {
     val categoryName = toc.category?.trim() ?: "Uncategorized"
-    val categoryDir = File(rootDir, categoryName)
     val hebrewCategory = toc.heCategory ?: "ללא קטגוריה"
 
+    val categoryDir = File(rootDir, categoryName)
+
     if (categoryDir.mkdirs()) {
-        logger.info("Category directory created: ${categoryDir.path}")
+        logger.info("Répertoire de catégorie créé : ${categoryDir.path}")
     } else {
-        logger.warn("Failed to create category directory or it already exists: ${categoryDir.path}")
+        logger.warn("Échec de la création du répertoire de catégorie ou il existe déjà : ${categoryDir.path}")
     }
 
     val node = processNode(categoryDir, toc.contents, rootPath, createBooks, logger)
     return node?.let {
         DirectoryNode(
-            name = categoryName,
-            path = toRelativePath(rootDir, categoryDir),
+            englishName = categoryName,
+            hebrewName = hebrewCategory,
+            indexPath = toRelativePath(rootPath, categoryDir),
             children = it.children,
-            isLeaf = it.children.isEmpty(),
-            hebrewTitle = hebrewCategory
+            isLeaf = it.children.isEmpty()
         )
     }
 }
 
+
 /**
- * Processes a directory node by traversing its contents, creating child directory nodes
- * recursively, and constructing a `DirectoryNode` representation.
- *
- * @param currentPath The current file path representing the directory node being processed.
- * @param contents A list of `ContentItem` objects representing the contents of the directory, or null if none exist.
- * @param rootPath The path to the root directory, used for relative path calculations.
- * @param createBooks A boolean indicating whether books should be created when processing leaf nodes.
- * @param logger The logger used for logging operations during processing.
- * @param isParentExcluded A boolean to signify if the parent directory is excluded from processing.
- *                          Defaults to `false`.
- *
- * @return A `DirectoryNode` representing the processed directory and its children, or null if
- *         the directory or its children are excluded or empty.
+ * Traite un nœud de répertoire.
  */
 private suspend fun processNode(
     currentPath: File,
     contents: List<ContentItem>?,
-    rootPath: String,
+    rootPath: File, // Utiliser File au lieu de String
     createBooks: Boolean,
     logger: Logger,
     isParentExcluded: Boolean = false
@@ -135,100 +106,95 @@ private suspend fun processNode(
 
     return if (childrenNodes.isNotEmpty()) {
         DirectoryNode(
-            name = currentPath.name,
-            path = toRelativePath(File(rootPath), currentPath),
+            englishName = currentPath.name,
+            hebrewName = null, // Les nœuds racines ont leur hebrewName défini dans processCategory
+            indexPath = toRelativePath(rootPath, currentPath),
             children = childrenNodes,
-            isLeaf = childrenNodes.isEmpty(),
-            hebrewTitle = null
+            isLeaf = childrenNodes.isEmpty()
         )
     } else null
 }
 
 
 /**
- * Processes a content item by creating its corresponding directory structure and handling its data.
- *
- * This method validates whether a content item is blacklisted, attempts to create a directory
- * for the item, and processes it recursively if it has children. For items without children,
- * it checks for complex book structures and creates books if required.
- *
- * @param item The `ContentItem` object to be processed.
- * @param currentPath The current `File` object representing the directory path being processed.
- * @param rootPath The root path as a `String` used for determining relative paths.
- * @param createBooks A `Boolean` flag indicating whether to generate books where applicable.
- * @param logger A `Logger` instance used for logging information, warnings, and errors during the process.
- * @return A `DirectoryNode` representing the processed directory structure, or `null` if the item is blacklisted.
+ * Traite un élément de contenu.
  */
 private suspend fun processContentItem(
     item: ContentItem,
     currentPath: File,
-    rootPath: String,
+    rootPath: File, // Utiliser File
     createBooks: Boolean,
     logger: Logger
 ): DirectoryNode? {
-    val nodeName = determineNodeName(item)
-    logger.debug("Checking node: $nodeName")
+    val (englishName, hebrewName) = determineNodeNames(item)
+    logger.debug("Traitement du nœud : $englishName (Hébreu : $hebrewName)")
 
-    if (BLACKLIST.any { it.equals(nodeName, ignoreCase = true) }) {
-        logger.info("Book ignored (present in the blacklist): $nodeName")
+    if (BLACKLIST.any { it.equals(englishName, ignoreCase = true) }) {
+        logger.info("Livre ignoré (présent dans la liste noire) : $englishName")
         return null
     }
 
-    val nodePath = File(currentPath, nodeName)
-    val hebrewTitle = item.heTitle ?: item.heCategory
+    val nodePath = File(currentPath, englishName)
 
     if (nodePath.mkdirs()) {
-        logger.info("Directory created: ${nodePath.path}")
+        logger.info("Répertoire créé : ${nodePath.path}")
     } else {
-        logger.warn("Failed to create directory or it already exists: ${nodePath.path}")
+        logger.warn("Échec de la création du répertoire ou il existe déjà : ${nodePath.path}")
     }
 
     return if (item.contents.isNullOrEmpty()) {
-        // Check if it is a complex book
-        val bookChildren = checkForComplexBook(nodeName, nodePath.path, createBooks, logger)
+        // Traiter le nœud feuille (livre)
+        val bookChildren = checkForComplexBook(englishName, nodePath, rootPath, createBooks, logger)
 
         if (bookChildren.isNotEmpty()) {
             DirectoryNode(
-                name = nodeName,
-                path = toRelativePath(File(rootPath), nodePath),
+                englishName = englishName,
+                hebrewName = hebrewName,
+                indexPath = toRelativePath(rootPath, nodePath),
                 children = bookChildren,
-                isLeaf = false,
-                hebrewTitle = hebrewTitle
+                isLeaf = false
             )
         } else {
             if (createBooks) {
-                runBlocking { buildBookFromShape(nodeName, nodePath.parent) }
+                runBlocking { buildBookFromShape(englishName, nodePath.path) }
             }
             DirectoryNode(
-                name = nodeName,
-                path = toRelativePath(File(rootPath), nodePath),
+                englishName = englishName,
+                hebrewName = hebrewName,
+                indexPath = toRelativePath(rootPath, nodePath),
                 children = emptyList(),
-                isLeaf = true,
-                hebrewTitle = hebrewTitle
+                isLeaf = true
             )
         }
     } else {
-        processNode(nodePath, item.contents, rootPath, createBooks, logger)
+        // Traiter les nœuds enfants
+        val childNode = processNode(nodePath, item.contents, rootPath, createBooks, logger)
+        childNode?.copy(
+            englishName = englishName,
+            hebrewName = hebrewName
+        )
     }
 }
 
+
 /**
- * Checks whether the specified book is complex and processes its structure if necessary.
- * This function determines if the structure of a book is complex*/
+ * Vérifie si un livre est complexe et traite sa structure si nécessaire.
+ */
 private suspend fun checkForComplexBook(
     bookTitle: String,
-    rootFolder: String,
+    bookDir: File, // Passer le répertoire du livre
+    rootPath: File, // Passer le répertoire racine
     createBooks: Boolean,
     logger: Logger
 ): List<DirectoryNode> {
     val encodedTitle = bookTitle.replace(" ", "%20")
-    logger.info("Checking if book is complex: $bookTitle")
+    logger.info("Vérification si le livre est complexe : $bookTitle")
     val shapeUrl = "$BASE_URL/shape/$encodedTitle"
 
-
-    //DEBUG
-    if ((bookTitle != "Tur") && (bookTitle != "Abarbanel on Torah")) {
-        logger.info("The book '$bookTitle' is not complex. No API check needed.")
+    // Liste des livres considérés comme complexes
+    val complexBooks = listOf("Tur", "Abarbanel on Torah", "Beit Yosef")
+    if (bookTitle !in complexBooks) {
+        logger.info("Le livre '$bookTitle' n'est pas complexe. Aucune vérification API nécessaire.")
         return emptyList()
     }
 
@@ -236,89 +202,87 @@ private suspend fun checkForComplexBook(
         val shapeJson = fetchJsonFromApi(shapeUrl)
         val jsonElement = json.parseToJsonElement(shapeJson)
 
-        //TODO Unify the detection of complex books with that of the book builder
         if (jsonElement.jsonArray.firstOrNull()?.jsonObject?.get("isComplex")?.jsonPrimitive?.boolean == true) {
-            logger.info("Detected complex book structure for: $bookTitle")
+            logger.info("Structure complexe détectée pour : $bookTitle")
             val complexBook = json.decodeFromString<List<ComplexShapeItem>>(shapeJson).first()
 
-            // Create child nodes for each chapter of the complex book
+            // Créer des nœuds enfants pour chaque chapitre du livre complexe
             complexBook.chapters.mapNotNull { chapterElement ->
-                when (chapterElement) {
-                    is JsonObject -> {
-                        val chapter = json.decodeFromJsonElement<FlexibleShapeItem>(chapterElement)
-                        val chapterPath = "${rootFolder}/${chapter.title}"
+                if (chapterElement is JsonObject) {
+                    val chapter = json.decodeFromJsonElement<FlexibleShapeItem>(chapterElement)
+                    val chapterDir = File(bookDir, chapter.title)
 
-                        if (createBooks) {
-                            // Create the chapter file
-                            File(chapterPath).mkdirs()
-                            buildBookFromShape(chapter.title, rootFolder)
+                    if (createBooks) {
+                        // Créer le répertoire du chapitre
+                        if (chapterDir.mkdirs()) {
+                            logger.info("Répertoire du chapitre créé : ${chapterDir.path}")
+                        } else {
+                            logger.warn("Échec de la création du répertoire du chapitre ou il existe déjà : ${chapterDir.path}")
                         }
-
-                        DirectoryNode(
-                            name = chapter.title,
-                            path = chapterPath,
-                            children = emptyList(),
-                            isLeaf = true,
-                            hebrewTitle = chapter.heTitle
-                        )
+                        // Créer le fichier du chapitre
+                        buildBookFromShape(chapter.title, chapterDir.path)
                     }
-                    else -> null
+
+                    DirectoryNode(
+                        englishName = chapter.title,
+                        hebrewName = chapter.heTitle,
+                        indexPath = toRelativePath(rootPath, chapterDir),
+                        children = emptyList(),
+                        isLeaf = true
+                    )
+                } else {
+                    logger.warn("Élément de chapitre non valide pour le livre complexe : $bookTitle")
+                    null
                 }
             }
         } else {
             emptyList()
         }
     } catch (e: Exception) {
-        logger.error("Error checking complex book structure for $bookTitle: ${e.message}")
+        logger.error("Erreur lors de la vérification de la structure complexe pour $bookTitle : ${e.message}")
         emptyList()
     }
 }
 
 /**
- * Determines the name of a node based on the attributes of a given `ContentItem`.
- *
- * The method prioritizes the `title` field of the `ContentItem` and trims whitespace for a valid name.
- * If the `title` is not available or blank, it falls back to the `category` field.
- * If neither the `title` nor the `category` is provided, it returns a default value of "Untitled".
- *
- * @param item The `ContentItem` whose attributes are used to determine the node name.
- * @return A `String` representing the determined node name. If none of the fields are available, returns "Untitled".
+ * Détermine les noms anglais et hébreu d'un nœud basé sur un `ContentItem`.
  */
-private fun determineNodeName(item: ContentItem): String {
-    return when {
+private fun determineNodeNames(item: ContentItem): Pair<String, String?> {
+    val englishName = when {
         !item.title.isNullOrBlank() -> item.title!!.trim()
-        !item.category.isNullOrBlank() -> item.heCategory!!.trim()
+        !item.category.isNullOrBlank() -> item.category!!.trim()
         else -> "Untitled"
     }
+
+    val hebrewName = when {
+        !item.heTitle.isNullOrBlank() -> item.heTitle!!.trim()
+        !item.heCategory.isNullOrBlank() -> item.heCategory!!.trim()
+        else -> null
+    }
+
+    return Pair(englishName, hebrewName)
 }
 
 /**
- * Creates index files in JSON and Protobuf formats based on the provided root directory and list of directory nodes.
- * These files help in representing the structure of directories and their contents in various formats.
- *
- * @param rootDir The root directory where the index files will be created.
- * @param rootNodes A list of `DirectoryNode` objects representing the hierarchy to be serialized into the index files.
- * @param logger The logger instance used to log messages about the creation of index files.
+ * Crée les fichiers d'index en formats JSON et Protobuf.
  */
 @OptIn(ExperimentalSerializationApi::class)
 private fun createIndexFiles(rootDir: File, rootNodes: List<DirectoryNode?>, logger: Logger) {
-    val indexFile = File(rootDir, "index.json")
-    val jsonContent = json.encodeToString(rootNodes)
-    indexFile.writeText(jsonContent)
-    logger.info("index.json file created: ${indexFile.absolutePath}")
+    val filteredNodes = rootNodes.filterNotNull()
 
-    val protobufData = ProtoBuf.encodeToByteArray(rootNodes)
+    val indexFile = File(rootDir, "index.json")
+    val jsonContent = json.encodeToString(filteredNodes)
+    indexFile.writeText(jsonContent)
+    logger.info("Fichier index.json créé : ${indexFile.absolutePath}")
+
+    val protobufData = ProtoBuf.encodeToByteArray(filteredNodes)
     val protobufFile = File(rootDir, "index.proto")
     protobufFile.writeBytes(protobufData)
-    logger.info("index.proto file created: ${protobufFile.absolutePath}")
+    logger.info("Fichier index.proto créé : ${protobufFile.absolutePath}")
 }
 
 /**
- * Converts the absolute path of a file to a relative path based on a specified root directory.
- *
- * @param rootDir The root directory from which the relative path should be calculated.
- * @param file The target file for which the relative path is to be determined.
- * @return A string representing the relative path of the target file with respect to the root directory.
+ * Convertit un chemin absolu en chemin relatif basé sur un répertoire racine.
  */
 private fun toRelativePath(rootDir: File, file: File): String {
     return rootDir.toURI().relativize(file.toURI()).path

@@ -34,12 +34,11 @@ data class ChapterIndex(
     val numberOfVerses: Int,
     val commentators: List<String>
 )
-
 @Serializable
 data class DirectoryNode(
-    val name: String,
-    val path: String,
+    val englishName: String,
+    val hebrewName: String?,
+    val indexPath: String,
     val children: List<DirectoryNode> = emptyList(),
-    val isLeaf: Boolean = false,
-    val hebrewTitle: String? = null
+    val isLeaf: Boolean = false
 )

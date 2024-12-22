@@ -26,6 +26,7 @@ import org.jetbrains.jewel.ui.component.VerticallyScrollableContainer
 import org.jetbrains.jewel.ui.component.styling.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.theme.treeStyle
+import org.slf4j.LoggerFactory
 import java.io.File
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -59,14 +60,21 @@ internal fun buildDirectoryNodeTree(treeBuilder: ChildrenGeneratorScope<Director
     }
 }
 
-@OptIn(ExperimentalJewelApi::class)
 @Composable
 fun DisplayTree() {
     var tree by remember { mutableStateOf<Tree<DirectoryNode>>(emptyTree()) }
 
+    // Logger for debugging purposes
+    val logger = LoggerFactory.getLogger("DisplayTree")
+
     LaunchedEffect(Unit) {
-        val nodes = readDirectoryNodesFromProtobuf("index.proto")
-        tree = convertDirectoryNodesToTree(nodes)
+        try {
+            val nodes = readDirectoryNodesFromProtobuf("index.proto")
+            tree = convertDirectoryNodesToTree(nodes)
+            logger.info("Directory tree successfully loaded.")
+        } catch (e: Exception) {
+            logger.error("Failed to load directory tree: ${e.message}")
+        }
     }
 
     val layoutDirection = LocalLayoutDirection.current
@@ -109,14 +117,17 @@ fun DisplayTree() {
                     modifier = Modifier.fillMaxSize(),
                     onElementClick = { element ->
                         val directoryNode = element.data
-                        println("Path: ${directoryNode.path}")
+                        println("Path: ${directoryNode.indexPath}")
                     },
                     onElementDoubleClick = { element ->
                         val directoryNode = element.data
-                        println("ID: ${directoryNode.name}")
+                        println("ID: ${directoryNode.englishName}")
                     }
                 ) { element ->
-                    Text(element.data.hebrewTitle ?: element.data.name, Modifier.padding(2.dp))
+                    Text(
+                        text = element.data.hebrewName ?: element.data.englishName,
+                        modifier = Modifier.padding(2.dp)
+                    )
                 }
             }
         }
