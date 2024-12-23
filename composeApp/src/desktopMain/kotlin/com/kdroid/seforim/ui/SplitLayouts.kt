@@ -1,3 +1,4 @@
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -6,7 +7,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
-import com.kdroid.seforim.ui.*
+import com.kdroid.seforim.ui.BookViewScreen
+import com.kdroid.seforim.ui.DisplayTree
+import com.kdroid.seforim.ui.loadBookIndexFromDatabase
 import org.jetbrains.compose.splitpane.ExperimentalSplitPaneApi
 import org.jetbrains.compose.splitpane.HorizontalSplitPane
 import org.jetbrains.compose.splitpane.rememberSplitPaneState
@@ -20,9 +23,9 @@ import java.awt.Cursor
 
 @Composable
 fun SearchTextField() {
-    val state2 = rememberTextFieldState("")
+    val state = rememberTextFieldState("")
     TextField(
-        state = state2,
+        state = state,
         placeholder = { Text("חפש ספר") },
         modifier = Modifier.width(200.dp).padding(8.dp),
         leadingIcon = {
@@ -37,6 +40,7 @@ fun SearchTextField() {
 
 private fun Modifier.cursorForHorizontalResize(): Modifier =
     pointerHoverIcon(PointerIcon(Cursor(Cursor.E_RESIZE_CURSOR)))
+
 
 @OptIn(ExperimentalSplitPaneApi::class)
 @Composable

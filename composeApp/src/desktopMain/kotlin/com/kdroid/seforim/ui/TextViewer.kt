@@ -208,6 +208,7 @@ fun BookViewScreen(bookIndex: BookIndex) {
     }
 }
 
+
 fun loadVerse2(bookTitle: String, chapter: Int, verse: Int): Verse? {
     val path = "../database/$GENERATED_FOLDER/$bookTitle/$chapter/$verse.json"
     val file = File(path)
