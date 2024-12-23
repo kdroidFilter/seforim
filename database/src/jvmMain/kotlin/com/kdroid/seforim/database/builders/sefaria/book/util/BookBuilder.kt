@@ -2,6 +2,7 @@ package com.kdroid.seforim.database.builders.sefaria.book.util
 
 import com.kdroid.seforim.core.model.*
 import com.kdroid.seforim.core.model.CommentaryType.*
+import com.kdroid.seforim.database.Database
 import com.kdroid.seforim.database.builders.sefaria.book.api.fetchJsonFromApi
 import com.kdroid.seforim.database.builders.sefaria.book.model.CommentItem
 import com.kdroid.seforim.database.builders.sefaria.book.model.ComplexShapeItem
@@ -24,7 +25,7 @@ import kotlin.collections.component2
 internal val logger = LoggerFactory.getLogger("BookBuilderUtil")
 
 
-internal suspend fun buildBookFromShape(bookTitle: String, rootFolder: String) {
+internal suspend fun buildBookFromShape(bookTitle: String, rootFolder: String, database: Database) {
     val encodedTitle = bookTitle.replace(" ", "%20")
     logger.info("Fetching shape for book: $bookTitle")
     val shapeUrl = "$BASE_URL/shape/$encodedTitle"
@@ -36,18 +37,18 @@ internal suspend fun buildBookFromShape(bookTitle: String, rootFolder: String) {
     if (jsonElement.jsonArray.firstOrNull()?.jsonObject?.get("isComplex")?.jsonPrimitive?.boolean == true) {
         logger.info("Detected complex book structure for: $bookTitle")
         val complexBook = json.decodeFromString<List<ComplexShapeItem>>(shapeJson).first()
-        processComplexBook(complexBook, rootFolder)
+        processComplexBook(complexBook, rootFolder, database = database)
     } else {
         logger.info("Detected simple book structure for: $bookTitle")
         val simpleBooks = json.decodeFromString<List<FlexibleShapeItem>>(shapeJson)
         simpleBooks.forEach { shapeItem ->
             val item = shapeItem.toShapeItem(logger)
-            BookProcessor().processSimpleBook(item, rootFolder)
+            BookProcessor().processSimpleBook(item, rootFolder, database = database)
         }
     }
 }
 
-private suspend fun processComplexBook(complexBook: ComplexShapeItem, rootFolder: String) {
+private suspend fun processComplexBook(complexBook: ComplexShapeItem, rootFolder: String, database: Database) {
     // For each item in complexBook.chapters, decode to FlexibleShapeItem
     // Then call toShapeItem() to get a standard ShapeItem.
     for (chapterElement in complexBook.chapters) {
@@ -59,7 +60,7 @@ private suspend fun processComplexBook(complexBook: ComplexShapeItem, rootFolder
             // Decode into FlexibleShapeItem
             val shapeItem = json.decodeFromJsonElement<FlexibleShapeItem>(chapterElement)
             val normalShape = shapeItem.toShapeItem(logger)
-            BookProcessor().processSimpleBook(normalShape, rootFolder, title)
+            BookProcessor().processSimpleBook(normalShape, rootFolder, title, database = database)
         } catch (e: Exception) {
             logger.info("Failed to process sub-book $title: ${e.message}")
         }

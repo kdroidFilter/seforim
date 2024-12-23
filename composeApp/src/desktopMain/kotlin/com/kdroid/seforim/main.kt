@@ -53,8 +53,7 @@ fun main() {
                         TitleBarView()
                         Column(
                             Modifier.trackActivation().fillMaxSize().background(JewelTheme.globalColors.panelBackground)
-                        ) {
-                            SplitLayouts("Horayot")
+                        ) { SplitLayouts("Horayot")
                         }
                     },
                 )

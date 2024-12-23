@@ -25,13 +25,13 @@ import org.slf4j.LoggerFactory
 /**
  * Crée des répertoires et des fichiers basés sur la structure fournie du Table of Content (ToC).
  */
-suspend fun createDirectoriesAndFilesWithIndex(rootPath: String, tree: List<TableOfContent>, createBooks: Boolean = true) {
+suspend fun createDirectoriesAndFilesWithIndex(rootPath: String, tree: List<TableOfContent>, createBooks: Boolean = true, database: Database) {
     val logger = LoggerFactory.getLogger("DirectoryCreator")
 
     val rootDir = initializeRootDirectory(rootPath, logger) ?: return
 
     val rootNodes = tree.mapNotNull { toc ->
-        processCategory(toc, rootDir, rootDir, createBooks, logger) // Passer rootDir comme rootPath
+        processCategory(toc, rootDir, rootDir, createBooks, logger, database) // Passer rootDir comme rootPath
     }
 
     createIndexFiles(rootDir, rootNodes, logger)
@@ -63,7 +63,8 @@ private suspend fun processCategory(
     rootDir: File,
     rootPath: File, // Utiliser File au lieu de String pour rootPath
     createBooks: Boolean,
-    logger: Logger
+    logger: Logger,
+    database: Database
 ): DirectoryNode? {
     val categoryName = toc.category?.trim() ?: "Uncategorized"
     val hebrewCategory = toc.heCategory ?: "ללא קטגוריה"
@@ -76,7 +77,7 @@ private suspend fun processCategory(
         logger.warn("Échec de la création du répertoire de catégorie ou il existe déjà : ${categoryDir.path}")
     }
 
-    val node = processNode(categoryDir, toc.contents, rootPath, createBooks, logger)
+    val node = processNode(categoryDir, toc.contents, rootPath, createBooks, logger, database = database)
     return node?.let {
         DirectoryNode(
             englishName = categoryName,
@@ -98,12 +99,13 @@ private suspend fun processNode(
     rootPath: File, // Utiliser File au lieu de String
     createBooks: Boolean,
     logger: Logger,
-    isParentExcluded: Boolean = false
+    isParentExcluded: Boolean = false,
+    database: Database
 ): DirectoryNode? {
     if (isParentExcluded) return null
 
     val childrenNodes = contents?.mapNotNull { item ->
-        processContentItem(item, currentPath, rootPath, createBooks, logger)
+        processContentItem(item, currentPath, rootPath, createBooks, logger, database = database)
     } ?: emptyList()
 
     return if (childrenNodes.isNotEmpty()) {
@@ -126,7 +128,8 @@ private suspend fun processContentItem(
     currentPath: File,
     rootPath: File, // Utiliser File
     createBooks: Boolean,
-    logger: Logger
+    logger: Logger,
+    database: Database
 ): DirectoryNode? {
     val (englishName, hebrewName) = determineNodeNames(item)
     logger.debug("Traitement du nœud : $englishName (Hébreu : $hebrewName)")
@@ -146,7 +149,7 @@ private suspend fun processContentItem(
 
     return if (item.contents.isNullOrEmpty()) {
         // Traiter le nœud feuille (livre)
-        val bookChildren = checkForComplexBook(englishName, nodePath, rootPath, createBooks, logger)
+        val bookChildren = checkForComplexBook(englishName, nodePath, rootPath, createBooks, logger, database = database)
 
         if (bookChildren.isNotEmpty()) {
             DirectoryNode(
@@ -158,7 +161,7 @@ private suspend fun processContentItem(
             )
         } else {
             if (createBooks) {
-                runBlocking { buildBookFromShape(englishName, nodePath.path) }
+                runBlocking { buildBookFromShape(englishName, nodePath.path, database = database) }
             }
             DirectoryNode(
                 englishName = englishName,
@@ -170,7 +173,7 @@ private suspend fun processContentItem(
         }
     } else {
         // Traiter les nœuds enfants
-        val childNode = processNode(nodePath, item.contents, rootPath, createBooks, logger)
+        val childNode = processNode(nodePath, item.contents, rootPath, createBooks, logger, database = database)
         childNode?.copy(
             englishName = englishName,
             hebrewName = hebrewName
@@ -187,7 +190,8 @@ private suspend fun checkForComplexBook(
     bookDir: File, // Passer le répertoire du livre
     rootPath: File, // Passer le répertoire racine
     createBooks: Boolean,
-    logger: Logger
+    logger: Logger,
+    database: Database
 ): List<DirectoryNode> {
     val encodedTitle = bookTitle.replace(" ", "%20")
     logger.info("Vérification si le livre est complexe : $bookTitle")
@@ -222,7 +226,7 @@ private suspend fun checkForComplexBook(
                             logger.warn("Échec de la création du répertoire du chapitre ou il existe déjà : ${chapterDir.path}")
                         }
                         // Créer le fichier du chapitre
-                        buildBookFromShape(chapter.title, chapterDir.path)
+                        buildBookFromShape(chapter.title, chapterDir.path, database = database)
                     }
 
                     DirectoryNode(

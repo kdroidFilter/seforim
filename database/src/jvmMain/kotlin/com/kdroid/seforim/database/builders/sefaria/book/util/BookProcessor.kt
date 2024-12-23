@@ -33,7 +33,8 @@ class BookProcessor {
     internal suspend fun processSimpleBook(
         shape: ShapeItem,
         rootFolder: String,
-        subBookTitle: String? = null
+        subBookTitle: String? = null,
+        database: Database
     ) {
         val totalVerses = shape.chapters.sum()
         var processedVerses = 0
@@ -177,7 +178,9 @@ class BookProcessor {
                 chapterCommentators = chapterCommentators,
                 rootFolder = rootFolder,
                 isTalmud = isTalmud,
-                subBookTitle = subBookTitle, shouldApplyOffset = shouldApplyOffset()
+                subBookTitle = subBookTitle, shouldApplyOffset = shouldApplyOffset(),
+                database = database,
+
             )
         }
 
@@ -334,7 +337,7 @@ class BookProcessor {
         }
     }
 
-    private suspend fun createAndSaveBookIndex2(
+    private suspend fun createAndSaveBookIndex(
         shape: ShapeItem,
         chapterCommentators: Map<Int, Set<String>>,
         rootFolder: String,
@@ -388,9 +391,9 @@ class BookProcessor {
         rootFolder: String,
         isTalmud: Boolean,
         subBookTitle: String? = null,
-        shouldApplyOffset: Boolean
+        shouldApplyOffset: Boolean,
+        database: Database
     ) {
-        val database = createDatabase()
         val cumulativeOffsets = shape.chapters.runningFold(0) { acc, nbVerses -> acc + nbVerses }
 
         val chaptersIndexList = shape.chapters.mapIndexed { chapterIndex, nbVerses ->

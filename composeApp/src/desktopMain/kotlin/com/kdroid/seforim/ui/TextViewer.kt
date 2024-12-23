@@ -243,8 +243,13 @@ internal fun loadVerseFromProto2(bookTitle: String, chapter: Int, verse: Int): V
 
 
 fun createDatabase(): Database {
-    val driver = JdbcSqliteDriver("jdbc:sqlite:seforim.db")
-    Database.Schema.create(driver) // Crée la base de données à partir du schéma
+    // Spécifiez le chemin absolu vers le fichier SQLite
+    val absolutePath = "/home/elyahou/IdeaProjects/seforim/database/seforim.db"
+    val driver = JdbcSqliteDriver("jdbc:sqlite:$absolutePath")
+
+    // Crée la base de données à partir du schéma, si nécessaire
+    Database.Schema.create(driver)
+
     return Database(driver)
 }
 

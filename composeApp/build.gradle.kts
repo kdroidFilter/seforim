@@ -14,7 +14,7 @@ kotlin {
     androidTarget {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_11)
+            jvmTarget.set(JvmTarget.JVM_17)
         }
     }
     
@@ -37,11 +37,25 @@ kotlin {
             implementation(compose.components.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.lifecycle.runtime.compose)
-
             implementation(libs.ktor.serialization.kotlinx.protobuf)
+
+            //Koin
+            implementation(project.dependencies.platform(libs.koin.bom))
+            implementation(libs.koin.core)
+            implementation(libs.koin.compose.viewmodel)
+            implementation(libs.koin.compose.viewmodel.navigation)
+            implementation(libs.koin.compose)
+
+            //Navigation
+            implementation(libs.navigation.compose)
+
+
+
 
             implementation(libs.htmlconverter)
             implementation(libs.hebrewnumerals)
+
+
 
         }
         desktopMain.dependencies {
@@ -66,6 +80,7 @@ kotlin {
 
             implementation(libs.kotlinx.serialization.json)
 
+            implementation("com.mohamedrejeb.dnd:compose-dnd:0.3.0")
 
             implementation(libs.jsystemthemedetector)
             implementation(libs.sqlite.driver)
@@ -96,8 +111,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 
@@ -110,6 +125,7 @@ compose.desktop {
         mainClass = "com.kdroid.seforim.MainKt"
 
         nativeDistributions {
+            modules("java.sql")
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.kdroid.seforim"
             packageVersion = "1.0.0"
