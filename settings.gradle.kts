@@ -39,3 +39,4 @@ dependencyResolutionManagement {
 include(":core")
 include(":composeApp")
 include(":database")
+include(":databaseBuilder")

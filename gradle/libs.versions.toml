@@ -23,6 +23,7 @@ kotlinxSerializationJson = "1.8.0-RC"
 ktorClient = "3.0.2"
 slf4jSimple = "2.0.16"
 jewel = "0.27.0"
+sqliteDriver = "2.0.2"
 zstdJni = "1.5.6-8"
 inteligicons = "242.23339.11"
 
@@ -63,6 +64,7 @@ jewel-markdown-extension-gfmalerts = { group =  "org.jetbrains.jewel", name ="je
 jewel-foundation = { group =  "org.jetbrains.jewel", name ="jewel-foundation-242", version.ref = "jewel"}
 compose-splitpane = { group = "org.jetbrains.compose.components", name = "components-splitpane-desktop", version.ref = "compose-multiplatform" }
 
+sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqliteDriver" }
 zstd-jni = { module = "com.github.luben:zstd-jni", version.ref = "zstdJni" }
 
 [plugins]
@@ -72,3 +74,4 @@ composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "compose-mu
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+sqlDelight = {id = "app.cash.sqldelight", version.ref = "sqliteDriver"}

@@ -21,6 +21,7 @@ kotlin {
             implementation(libs.zstd.jni)
 
             implementation(libs.hebrewnumerals)
+            implementation(libs.sqlite.driver)
 
         }
     }

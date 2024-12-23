@@ -1,0 +1,26 @@
+
+CREATE TABLE IF NOT EXISTS verses (
+  book TEXT NOT NULL,
+  chapter INTEGER NOT NULL,
+  verse INTEGER NOT NULL,
+  data BLOB NOT NULL,
+  PRIMARY KEY (book, chapter, verse)
+);
+
+-- Requête pour insérer un verset
+insertVerse:
+INSERT OR REPLACE INTO verses (book, chapter, verse, data)
+VALUES (?, ?, ?, ?);
+
+-- Requête pour sélectionner un verset
+selectVerse:
+SELECT data
+FROM verses
+WHERE book = ? AND chapter = ? AND verse = ?;
+
+-- Requête pour tous les versets d’un chapitre
+selectChapterVerses:
+SELECT data
+FROM verses
+WHERE book = ? AND chapter = ?
+ORDER BY verse;

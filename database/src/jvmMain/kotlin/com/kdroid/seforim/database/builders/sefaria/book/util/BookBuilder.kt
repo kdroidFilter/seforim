@@ -74,7 +74,7 @@ private fun Int.toGuemaraInt(): String {
     return "$numberPart$suffix"
 }
 
-internal fun saveVerse2(bookTitle: String, chapter: Int, verseNumber: Int, verse: Verse, rootFolder : String) {
+internal fun saveVerse(bookTitle: String, chapter: Int, verseNumber: Int, verse: Verse, rootFolder : String) {
     val verseDir = File("$rootFolder/$bookTitle/$chapter")
     if (!verseDir.exists()) verseDir.mkdirs()
 

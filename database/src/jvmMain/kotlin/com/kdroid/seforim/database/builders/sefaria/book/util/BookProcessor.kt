@@ -6,6 +6,7 @@ import com.kdroid.seforim.database.builders.sefaria.book.model.ShapeItem
 import com.kdroid.seforim.database.builders.sefaria.book.model.VerseResponse
 import com.kdroid.seforim.database.common.config.json
 import com.kdroid.seforim.database.common.constants.BASE_URL
+import com.kdroid.seforim.database.common.insertVerse
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -235,7 +236,8 @@ class BookProcessor {
             otherLinks = comments.otherLinks
         )
 
-        saveVerseAsProto(bookTitle, chapterNumber, verseNumber, verse, rootFolder)
+       // saveVerseAsProto(bookTitle, chapterNumber, verseNumber, verse, rootFolder)
+        insertVerse(bookTitle, chapterNumber, verseNumber, verse)
     }
 
     @Suppress("DefaultLocale")
@@ -283,7 +285,8 @@ class BookProcessor {
             otherLinks = comments.otherLinks
         )
 
-        saveVerseAsProto(bookTitle, chapterNumber, verseNumber, verse, rootFolder)
+        //saveVerseAsProto(bookTitle, chapterNumber, verseNumber, verse, rootFolder)
+        insertVerse(bookTitle, chapterNumber, verseNumber, verse)
     }
 
     private fun parseJsonOrNull(jsonString: String, context: String): JsonObject? {

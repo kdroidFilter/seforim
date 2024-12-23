@@ -68,6 +68,7 @@ kotlin {
 
 
             implementation(libs.jsystemthemedetector)
+            implementation(libs.sqlite.driver)
 
         }
     }

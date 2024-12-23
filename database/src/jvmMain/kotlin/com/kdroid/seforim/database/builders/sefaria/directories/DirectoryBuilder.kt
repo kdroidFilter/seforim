@@ -191,12 +191,12 @@ private suspend fun checkForComplexBook(
     logger.info("Vérification si le livre est complexe : $bookTitle")
     val shapeUrl = "$BASE_URL/shape/$encodedTitle"
 
-    // Liste des livres considérés comme complexes
-//    val complexBooks = listOf("Tur", "Abarbanel on Torah", "Beit Yosef")
-//    if (bookTitle !in complexBooks) {
-//        logger.info("Le livre '$bookTitle' n'est pas complexe. Aucune vérification API nécessaire.")
-//        return emptyList()
-//    }
+//     Liste des livres considérés comme complexes
+    val complexBooks = listOf("Tur", "Abarbanel on Torah", "Beit Yosef")
+    if (bookTitle !in complexBooks) {
+        logger.info("Le livre '$bookTitle' n'est pas complexe. Aucune vérification API nécessaire.")
+        return emptyList()
+    }
 
     return try {
         val shapeJson = fetchJsonFromApi(shapeUrl)

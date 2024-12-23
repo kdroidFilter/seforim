@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import be.digitalia.compose.htmlconverter.htmlToAnnotatedString
 import com.kdroid.gematria.converter.toDafGemara
 import com.kdroid.gematria.converter.toHebrewNumeral
@@ -19,6 +20,7 @@ import com.kdroid.seforim.core.model.BookIndex
 import com.kdroid.seforim.core.model.BookType
 import com.kdroid.seforim.core.model.CommentaryBase
 import com.kdroid.seforim.core.model.Verse
+import com.kdroid.seforim.database.Database
 import kotlinx.io.IOException
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException
@@ -59,7 +61,7 @@ fun BookViewScreen(bookIndex: BookIndex) {
 
     // Load data for the current verse, taking offset into account
     val currentVerseData by produceState<Verse?>(initialValue = null, currentChapter, currentVerse) {
-        value = loadVerse(bookIndex.title, currentChapter, currentVerse + currentChapterOffset)
+        value = loadVerseFromDb(bookIndex.title, currentChapter, currentVerse + currentChapterOffset)
     }
 
     val chapters = remember(bookIndex) {
@@ -187,7 +189,7 @@ fun BookViewScreen(bookIndex: BookIndex) {
     }
 }
 
-fun loadVerse(bookTitle: String, chapter: Int, verse: Int): Verse? {
+fun loadVerse2(bookTitle: String, chapter: Int, verse: Int): Verse? {
     val path = "../database/$GENERATED_FOLDER/$bookTitle/$chapter/$verse.json"
     val file = File(path)
 
@@ -204,7 +206,7 @@ fun loadVerse(bookTitle: String, chapter: Int, verse: Int): Verse? {
 }
 
 @OptIn(ExperimentalSerializationApi::class)
-internal fun loadVerseFromProto(bookTitle: String, chapter: Int, verse: Int): Verse? {
+internal fun loadVerseFromProto2(bookTitle: String, chapter: Int, verse: Int): Verse? {
     val path = "../database/$GENERATED_FOLDER/$bookTitle/$chapter/$verse.proto"
     val file = File(path)
 
@@ -218,6 +220,26 @@ internal fun loadVerseFromProto(bookTitle: String, chapter: Int, verse: Int): Ve
         println("Error parsing Protobuf for Verse at $path: ${e.message}")
         null
     }
+}
+
+
+fun createDatabase(): Database {
+    val driver = JdbcSqliteDriver("jdbc:sqlite:seforim.db")
+    Database.Schema.create(driver) // Crée la base de données à partir du schéma
+    return Database(driver)
+}
+
+@OptIn(ExperimentalSerializationApi::class)
+internal fun loadVerseFromDb(bookTitle: String, chapter: Int, verse: Int): Verse? {
+    val database = createDatabase()
+    val row = database.versesQueries.selectVerse(bookTitle, chapter.toLong(), verse.toLong()).executeAsOneOrNull()
+    if (row != null) {
+        val retrievedVerse = ProtoBuf.decodeFromByteArray<Verse>(row)
+        return  retrievedVerse
+    } else {
+        println("Aucun verset trouvé pour $bookTitle $chapter:$verse")
+    }
+    return null
 }
 
 @Composable
