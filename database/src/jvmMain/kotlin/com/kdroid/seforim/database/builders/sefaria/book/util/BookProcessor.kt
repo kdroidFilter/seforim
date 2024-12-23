@@ -42,7 +42,7 @@ class BookProcessor {
 
         // Fonction pour déterminer si l'offset doit être appliqué
         suspend fun shouldApplyOffset(): Boolean {
-            val url = "$BASE_URL/v2/raw/index/${shape.book}"
+            val url = "$BASE_URL/v2/raw/index/${shape.book.replace(" ", "%20")}"
             logger.info("Fetching JSON data from URL: $url")
 
             // Fetch the JSON string from the API
@@ -235,7 +235,7 @@ class BookProcessor {
             otherLinks = comments.otherLinks
         )
 
-        saveVerse(bookTitle, chapterNumber, verseNumber, verse, rootFolder)
+        saveVerseAsProto(bookTitle, chapterNumber, verseNumber, verse, rootFolder)
     }
 
     @Suppress("DefaultLocale")
@@ -283,7 +283,7 @@ class BookProcessor {
             otherLinks = comments.otherLinks
         )
 
-        saveVerse(bookTitle, chapterNumber, verseNumber, verse, rootFolder)
+        saveVerseAsProto(bookTitle, chapterNumber, verseNumber, verse, rootFolder)
     }
 
     private fun parseJsonOrNull(jsonString: String, context: String): JsonObject? {
@@ -436,7 +436,7 @@ class BookProcessor {
     private suspend fun fetchBookSchema(bookTitle: String): BookSchema? {
         logger.info("Fetching schema for '$bookTitle'")
         return try {
-            val jsonResponse = fetchJsonFromApi("$BASE_URL/v2/raw/index/$bookTitle")
+            val jsonResponse = fetchJsonFromApi("$BASE_URL/v2/raw/index/${bookTitle.replace(" ", "%20")}")
             val jsonElement = Json.parseToJsonElement(jsonResponse)
             val schema = jsonElement.jsonObject["schema"]?.jsonObject
 

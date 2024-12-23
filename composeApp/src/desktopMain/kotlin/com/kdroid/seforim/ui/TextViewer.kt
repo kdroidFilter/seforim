@@ -247,6 +247,7 @@ fun VerseScreen(verse: Verse) {
                 item {
                     Spacer(Modifier.height(12.dp))
                     Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+
                     Spacer(Modifier.height(8.dp))
                 }
                 // Display each commentary in this section
