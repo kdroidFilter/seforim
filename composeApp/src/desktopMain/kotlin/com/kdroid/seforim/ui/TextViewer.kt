@@ -16,10 +16,7 @@ import be.digitalia.compose.htmlconverter.htmlToAnnotatedString
 import com.kdroid.gematria.converter.toDafGemara
 import com.kdroid.gematria.converter.toHebrewNumeral
 import com.kdroid.seforim.constants.GENERATED_FOLDER
-import com.kdroid.seforim.core.model.BookIndex
-import com.kdroid.seforim.core.model.BookType
-import com.kdroid.seforim.core.model.CommentaryBase
-import com.kdroid.seforim.core.model.Verse
+import com.kdroid.seforim.core.model.*
 import com.kdroid.seforim.database.Database
 import kotlinx.io.IOException
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -36,7 +33,7 @@ import seforim.composeapp.generated.resources.`Guttman David_Bold`
 import seforim.composeapp.generated.resources.Res
 import java.io.File
 
-fun loadBookIndex(bookTitle: String): BookIndex {
+fun loadBookIndex2(bookTitle: String): BookIndex {
     val path = "../database/$GENERATED_FOLDER/$bookTitle/index.json"
     val file = File(path)
     val indexJson = file.readText()
@@ -44,6 +41,28 @@ fun loadBookIndex(bookTitle: String): BookIndex {
         ignoreUnknownKeys = true
     }
     return json.decodeFromString<BookIndex>(indexJson)
+}
+
+@OptIn(ExperimentalSerializationApi::class)
+fun loadBookIndexFromDatabase(bookTitle: String): BookIndex? {
+    val database = createDatabase()
+    // Utiliser la requête générée par SQLDelight pour récupérer l'index
+    val row = database.bookIndexQueries.selectBookIndex(bookTitle).executeAsOneOrNull()
+    return row?.let {
+        // Désérialiser les données Protobuf pour reconstruire l'index
+        val chapters = ProtoBuf.decodeFromByteArray<List<ChapterIndex>>(it.chapters)
+        val sectionNames = ProtoBuf.decodeFromByteArray<List<String>>(it.section_names)
+
+        // Retourner l'objet BookIndex reconstruit
+        BookIndex(
+            type = if (it.is_talmud == 1L) BookType.TALMUD else BookType.OTHER,
+            title = it.title,
+            heTitle = it.he_title,
+            numberOfChapters = it.number_of_chapters.toInt(),
+            chapters = chapters,
+            sectionNames = sectionNames
+        )
+    }
 }
 
 

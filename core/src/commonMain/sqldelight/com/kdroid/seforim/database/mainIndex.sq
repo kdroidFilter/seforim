@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS indices (
+  id TEXT PRIMARY KEY NOT NULL, -- Un identifiant unique pour l'index (par exemple, le nom du livre)
+  data BLOB NOT NULL            -- Les données sérialisées au format Protobuf
+);
+
+-- Requête pour insérer ou mettre à jour un index
+insertIndex:
+INSERT OR REPLACE INTO indices (id, data)
+VALUES (?, ?);
+
+-- Requête pour récupérer un index
+selectIndex:
+SELECT data
+FROM indices
+WHERE id = ?;
+
+-- Requête pour récupérer tous les index
+selectAllIndices:
+SELECT id, data
+FROM indices;

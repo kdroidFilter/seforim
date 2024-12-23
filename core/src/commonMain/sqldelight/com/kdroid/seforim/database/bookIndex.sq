@@ -1,0 +1,22 @@
+
+CREATE TABLE IF NOT EXISTS book_index (
+  book_id TEXT PRIMARY KEY NOT NULL,
+  is_talmud INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  he_title TEXT NOT NULL,
+  number_of_chapters INTEGER NOT NULL,
+  section_names BLOB NOT NULL, -- Données encodées en Protobuf
+  chapters BLOB NOT NULL       -- Données encodées en Protobuf
+);
+
+-- Requête pour insérer ou mettre à jour un index de livre
+insertBookIndex:
+INSERT OR REPLACE INTO book_index (
+  book_id, is_talmud, title, he_title, number_of_chapters, section_names, chapters
+) VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- Requête pour lire un index par ID
+selectBookIndex:
+SELECT *
+FROM book_index
+WHERE book_id = ?;

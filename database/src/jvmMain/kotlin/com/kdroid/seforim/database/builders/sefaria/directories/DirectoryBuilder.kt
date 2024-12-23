@@ -3,6 +3,7 @@ package com.kdroid.seforim.database.builders.sefaria.directories
 import com.kdroid.seforim.core.model.ContentItem
 import com.kdroid.seforim.core.model.DirectoryNode
 import com.kdroid.seforim.core.model.TableOfContent
+import com.kdroid.seforim.database.Database
 import com.kdroid.seforim.database.builders.sefaria.book.api.fetchJsonFromApi
 import com.kdroid.seforim.database.builders.sefaria.book.model.ComplexShapeItem
 import com.kdroid.seforim.database.builders.sefaria.book.model.FlexibleShapeItem
@@ -10,6 +11,7 @@ import com.kdroid.seforim.database.builders.sefaria.book.util.buildBookFromShape
 import com.kdroid.seforim.database.common.config.json
 import com.kdroid.seforim.database.common.constants.BASE_URL
 import com.kdroid.seforim.database.common.constants.BLACKLIST
+import com.kdroid.seforim.database.common.createDatabase
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -270,15 +272,18 @@ private fun determineNodeNames(item: ContentItem): Pair<String, String?> {
 private fun createIndexFiles(rootDir: File, rootNodes: List<DirectoryNode?>, logger: Logger) {
     val filteredNodes = rootNodes.filterNotNull()
 
-    val indexFile = File(rootDir, "index.json")
-    val jsonContent = json.encodeToString(filteredNodes)
-    indexFile.writeText(jsonContent)
-    logger.info("Fichier index.json créé : ${indexFile.absolutePath}")
-
     val protobufData = ProtoBuf.encodeToByteArray(filteredNodes)
     val protobufFile = File(rootDir, "index.proto")
     protobufFile.writeBytes(protobufData)
     logger.info("Fichier index.proto créé : ${protobufFile.absolutePath}")
+}
+
+@OptIn(ExperimentalSerializationApi::class)
+fun insertIndex(id: String, nodes: List<DirectoryNode>) {
+    val database = createDatabase()
+    val protobufData = ProtoBuf.encodeToByteArray(nodes)
+    database.mainIndexQueries.insertIndex(id = id, data_ = protobufData)
+    println("Index inséré pour $id")
 }
 
 /**

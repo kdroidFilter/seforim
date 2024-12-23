@@ -1,17 +1,20 @@
 package com.kdroid.seforim.database.builders.sefaria.book.util
 
 import com.kdroid.seforim.core.model.*
+import com.kdroid.seforim.database.Database
 import com.kdroid.seforim.database.builders.sefaria.book.api.fetchJsonFromApi
 import com.kdroid.seforim.database.builders.sefaria.book.model.ShapeItem
 import com.kdroid.seforim.database.builders.sefaria.book.model.VerseResponse
 import com.kdroid.seforim.database.common.config.json
 import com.kdroid.seforim.database.common.constants.BASE_URL
+import com.kdroid.seforim.database.common.createDatabase
 import com.kdroid.seforim.database.common.insertVerse
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.*
 import kotlinx.serialization.json.*
+import kotlinx.serialization.protobuf.ProtoBuf
 import java.io.File
 
 /**
@@ -169,7 +172,7 @@ class BookProcessor {
             tasks.awaitAll()
 
             // Créer et sauvegarder l'index du livre
-            createAndSaveBookIndex(
+            createAndSaveBookIndexInDatabase(
                 shape = shape,
                 chapterCommentators = chapterCommentators,
                 rootFolder = rootFolder,
@@ -331,7 +334,7 @@ class BookProcessor {
         }
     }
 
-    private suspend fun createAndSaveBookIndex(
+    private suspend fun createAndSaveBookIndex2(
         shape: ShapeItem,
         chapterCommentators: Map<Int, Set<String>>,
         rootFolder: String,
@@ -376,6 +379,56 @@ class BookProcessor {
         indexFile.writeText(json.encodeToString(bookIndex))
 
         logger.info("Index file created for ${shape.book}: ${indexFile.absolutePath}")
+    }
+
+    @OptIn(ExperimentalSerializationApi::class)
+    private suspend fun createAndSaveBookIndexInDatabase(
+        shape: ShapeItem,
+        chapterCommentators: Map<Int, Set<String>>,
+        rootFolder: String,
+        isTalmud: Boolean,
+        subBookTitle: String? = null,
+        shouldApplyOffset: Boolean
+    ) {
+        val database = createDatabase()
+        val cumulativeOffsets = shape.chapters.runningFold(0) { acc, nbVerses -> acc + nbVerses }
+
+        val chaptersIndexList = shape.chapters.mapIndexed { chapterIndex, nbVerses ->
+            ChapterIndex(
+                chapterNumber = chapterIndex + 1,
+                offset = if (shouldApplyOffset) cumulativeOffsets[chapterIndex] else 0,
+                numberOfVerses = nbVerses,
+                commentators = chapterCommentators[chapterIndex]?.toList() ?: emptyList()
+            )
+        }
+
+        val bookIndex = BookIndex(
+            type = if (isTalmud) BookType.TALMUD else BookType.OTHER,
+            title = shape.title,
+            heTitle = shape.heBook,
+            numberOfChapters = shape.chapters.size,
+            chapters = chaptersIndexList,
+            sectionNames = translateSections(
+                fetchBookSchema(if (shape.section.isNotEmpty()) shape.title else shape.section)?.sectionNames
+                    ?: emptyList()
+            )
+        )
+
+        val serializedChapters = ProtoBuf.encodeToByteArray(bookIndex.chapters)
+        val serializedSections = ProtoBuf.encodeToByteArray(bookIndex.sectionNames)
+
+        database.bookIndexQueries.insertBookIndex(
+            book_id = shape.title,
+            is_talmud = if (isTalmud) 1L else 0L,
+            title = bookIndex.title,
+            he_title = bookIndex.heTitle,
+            number_of_chapters = bookIndex.numberOfChapters.toLong(),
+            section_names = serializedSections,
+            chapters = serializedChapters
+        )
+
+
+        logger.info("Index for ${shape.title} saved to SQLite database.")
     }
 
 

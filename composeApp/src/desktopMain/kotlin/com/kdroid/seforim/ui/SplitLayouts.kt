@@ -53,8 +53,10 @@ fun SplitLayouts(bookTitle: String) {
                 }
             }
             second(50.dp) {
-                val bookIndex = loadBookIndex(bookTitle)
-                BookViewScreen(bookIndex = bookIndex)
+                val bookIndex = loadBookIndexFromDatabase(bookTitle)
+                if (bookIndex != null) {
+                    BookViewScreen(bookIndex = bookIndex)
+                }
             }
             splitter {
                 visiblePart {
