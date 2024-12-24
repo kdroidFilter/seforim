@@ -7,15 +7,19 @@ import com.kdroid.seforim.database.builders.sefaria.book.model.ShapeItem
 import com.kdroid.seforim.database.builders.sefaria.book.model.VerseResponse
 import com.kdroid.seforim.database.common.config.json
 import com.kdroid.seforim.database.common.constants.BASE_URL
-import com.kdroid.seforim.database.common.createDatabase
 import com.kdroid.seforim.database.common.insertVerse
-import kotlinx.coroutines.*
+import com.kdroid.seforim.utils.toGuemaraInt
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import kotlinx.serialization.*
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.json.*
 import kotlinx.serialization.protobuf.ProtoBuf
-import java.io.File
 
 /**
  * Classe responsable du traitement des livres en récupérant les versets,
@@ -238,7 +242,7 @@ class BookProcessor {
             text = verseText,
             commentary = comments.commentary,
             quotingCommentary = comments.quotingCommentary,
-            reference = comments.reference,
+            source = comments.source,
             otherLinks = comments.otherLinks
         )
 
@@ -287,7 +291,7 @@ class BookProcessor {
             targum = comments.targum,
             commentary = comments.commentary,
             quotingCommentary = comments.quotingCommentary,
-            reference = comments.reference,
+            source = comments.source,
             otherLinks = comments.otherLinks
         )
 
@@ -335,53 +339,6 @@ class BookProcessor {
             is JsonArray -> textElement.jsonArray.joinToString(" ") { it.jsonPrimitive.content }
             else -> ""
         }
-    }
-
-    private suspend fun createAndSaveBookIndex(
-        shape: ShapeItem,
-        chapterCommentators: Map<Int, Set<String>>,
-        rootFolder: String,
-        isTalmud: Boolean,
-        subBookTitle: String? = null,
-        shouldApplyOffset: Boolean
-    ) {
-        val cumulativeOffsets = shape.chapters.runningFold(0) { acc, nbVerses -> acc + nbVerses }
-
-        val chaptersIndexList = shape.chapters.mapIndexed { chapterIndex, nbVerses ->
-            ChapterIndex(
-                chapterNumber = chapterIndex + 1,
-                offset = if (shouldApplyOffset) cumulativeOffsets[chapterIndex] else 0,
-                numberOfVerses = nbVerses,
-                commentators = chapterCommentators[chapterIndex]?.toList() ?: emptyList()
-            )
-        }
-
-        val bookIndex = BookIndex(
-            type = if (isTalmud) BookType.TALMUD else BookType.OTHER,
-            title = shape.title,
-            heTitle = shape.heBook,
-            numberOfChapters = shape.chapters.size,
-            chapters = chaptersIndexList,
-            sectionNames = translateSections(
-                fetchBookSchema(if (shape.section.isNotEmpty()) shape.title else shape.section)?.sectionNames
-                    ?: emptyList()
-            )
-        )
-
-        // Déterminer le répertoire où sauvegarder l'index
-        val indexFolder = if (subBookTitle != null) {
-            // Si c'est un sous-livre, sauvegarder dans le répertoire du sous-livre
-            "$rootFolder/$subBookTitle"
-        } else {
-            // Sinon, sauvegarder dans le répertoire du livre principal
-            "$rootFolder/${shape.book}"
-        }
-
-        val indexFile = File("$indexFolder/index.json")
-        if (!indexFile.parentFile.exists()) indexFile.parentFile.mkdirs()
-        indexFile.writeText(json.encodeToString(bookIndex))
-
-        logger.info("Index file created for ${shape.book}: ${indexFile.absolutePath}")
     }
 
     @OptIn(ExperimentalSerializationApi::class)
@@ -434,34 +391,6 @@ class BookProcessor {
         logger.info("Index for ${shape.title} saved to SQLite database.")
     }
 
-
-    private fun extractSectionNames(node: JsonElement, sections: MutableSet<String>) {
-        if (node is JsonObject) {
-            node.forEach { (_, value) ->
-                when (value) {
-                    is JsonObject -> {
-                        // Vérifier si le nœud contient "sectionNames"
-                        val sectionNames = value["sectionNames"]?.jsonArray
-                        sectionNames?.forEach { section ->
-                            sections.add(section.jsonPrimitive.content)
-                        }
-                        // Continuer la récursion
-                        extractSectionNames(value, sections)
-                    }
-
-                    is JsonArray -> {
-                        value.forEach { element ->
-                            extractSectionNames(element, sections)
-                        }
-                    }
-
-                    else -> {
-                        // Ignorer les autres types
-                    }
-                }
-            }
-        }
-    }
 
     // Fonction pour extraire les addressTypes récursivement
     private fun extractAddressTypes(node: JsonElement, addressTypes: MutableSet<String>) {
@@ -546,9 +475,4 @@ class BookProcessor {
         }
     }
 
-    private fun Int.toGuemaraInt(): String {
-        val numberPart = (this + 1) / 2 + 1
-        val suffix = if (this % 2 == 1) "a" else "b"
-        return "$numberPart$suffix"
-    }
 }

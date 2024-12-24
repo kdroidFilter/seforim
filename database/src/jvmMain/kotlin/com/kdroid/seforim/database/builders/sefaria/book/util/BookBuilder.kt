@@ -11,6 +11,10 @@ import com.kdroid.seforim.database.builders.sefaria.book.model.ShapeItem
 import com.kdroid.seforim.database.common.config.json
 import com.kdroid.seforim.database.common.constants.BASE_URL
 import com.kdroid.seforim.database.common.constants.BLACKLIST
+import com.kdroid.seforim.utils.extractNumberAndLetterAsString
+import com.kdroid.seforim.utils.logToFile
+import com.kdroid.seforim.utils.normalizeRef
+import com.kdroid.seforim.utils.toGuemaraNumber
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToByteArray
@@ -68,14 +72,13 @@ private suspend fun processComplexBook(complexBook: ComplexShapeItem, rootFolder
 }
 
 
-
 private fun Int.toGuemaraInt(): String {
     val numberPart = (this + 1) / 2 + 1
     val suffix = if (this % 2 == 1) "a" else "b"
     return "$numberPart$suffix"
 }
 
-internal fun saveVerse(bookTitle: String, chapter: Int, verseNumber: Int, verse: Verse, rootFolder : String) {
+internal fun saveVerse(bookTitle: String, chapter: Int, verseNumber: Int, verse: Verse, rootFolder: String) {
     val verseDir = File("$rootFolder/$bookTitle/$chapter")
     if (!verseDir.exists()) verseDir.mkdirs()
 
@@ -92,17 +95,6 @@ internal fun saveVerseAsProto(bookTitle: String, chapter: Int, verseNumber: Int,
     val protoData = ProtoBuf.encodeToByteArray(verse)
     verseFile.writeBytes(protoData)
 }
-
-internal fun String.removeLastSegment(): String {
-    val parts = this.split(":")
-    return if (parts.size > 2) {
-        parts.dropLast(1).joinToString(":")
-    } else {
-        this
-    }
-}
-
-private val categoriesCache = mutableMapOf<String, String>()
 
 
 internal suspend fun fetchCommentsForVerse(
@@ -123,68 +115,115 @@ internal suspend fun fetchCommentsForVerse(
 
     val commentsJson = fetchJsonFromApi(commentsUrl)
 
-    // Attempt to parse the JSON as a JsonElement
     val parsedJsonElement = try {
         json.parseToJsonElement(commentsJson)
     } catch (e: SerializationException) {
         logger.info("Failed to parse JSON for comments from $commentsUrl: ${e.message}")
-        return CommentaryResponse(
-            commentary = emptyList(),
-            targum = emptyList(),
-            quotingCommentary = emptyList(),
-            reference = emptyList(),
-            otherLinks = emptyList()
-        )
+        return CommentaryResponse.empty()
     }
 
-    // Check if the response contains an "error" field
     if (parsedJsonElement is JsonObject && parsedJsonElement.containsKey("error")) {
         val errorMsg = parsedJsonElement["error"]?.jsonPrimitive?.content
         logger.info("Skipping comments for verse $chapter:$verse due to error: $errorMsg")
-        return CommentaryResponse(
-            commentary = emptyList(),
-            targum = emptyList(),
-            quotingCommentary = emptyList(),
-            reference = emptyList(),
-            otherLinks = emptyList()
-        )
+        return CommentaryResponse.empty()
     }
 
-    // Attempt to deserialize to List<CommentItem>
     val commentsList: List<CommentItem> = try {
         json.decodeFromString(commentsJson)
     } catch (e: SerializationException) {
         logger.info("Failed to deserialize comments for verse $chapter:$verse: ${e.message}")
-        return CommentaryResponse(
-            commentary = emptyList(),
-            targum = emptyList(),
-            quotingCommentary = emptyList(),
-            reference = emptyList(),
-            otherLinks = emptyList()
-        )
+        return CommentaryResponse.empty()
     }
 
-    // Process the comments
-    val allCommentaries = commentsList
+    val allCommentaries = processComments(commentsList)
+
+    return CommentaryResponse(
+        commentary = allCommentaries.filterIsInstance<Commentary>(),
+        targum = allCommentaries.filterIsInstance<Targum>(),
+        quotingCommentary = allCommentaries.filterIsInstance<QuotingCommentary>(),
+        source = allCommentaries.filterIsInstance<Source>(),
+        otherLinks = allCommentaries.filterIsInstance<OtherLinks>()
+    )
+}
+
+internal fun processComments(commentsList: List<CommentItem>): List<Any> {
+    val debugLog = StringBuilder()
+    debugLog.appendLine("Processing Comments")
+    debugLog.appendLine("--------------------")
+
+    val result = commentsList
+        // Filtrer ce qui est dans la blacklist
         .filterNot { BLACKLIST.contains(it.index_title) }
+        // Grouper par le nom du commentateur (exemple)
         .groupBy { it.collectiveTitle.he ?: "Unknown" }
         .mapNotNull { (commentatorName, groupedComments) ->
-            val path = groupedComments.firstOrNull()?.index_title ?: "Unknown Path"
+            // Récupérer le premier index_title pour représenter ce groupe
+            val indexTitle = groupedComments.firstOrNull()?.index_title ?: "Unknown Path"
 
-            // Extraire les textes avec leur référence
+            // Extraire nos textes + références
             val textsWithRef = groupedComments.mapNotNull { commentItem ->
-                val ref = (commentItem.sourceRef).removePrefix(path).trim().removeLastSegment().replace(":", "/") //J'adapte la source à la structure de ma bdd en locale pour pointer directement vers le fichier cible
+                val refCleaned = if (commentItem.sourceRef.contains(indexTitle)) {
+                    // On retire le préfixe "Rashi on Horayot" etc.
+                    commentItem.sourceRef.removePrefix(indexTitle).trim()
+                } else {
+                    commentItem.sourceRef.trim()
+                }
 
-                val guemeraRef = ref.extractNumberAndLetterAsString()
-                val line = ref.removePrefix(guemeraRef ?: "").removePrefix("/").toIntOrNull() ?: 0
+                // Normaliser la référence
+                val ref = refCleaned.normalizeRef()
+
+                // Séparer les segments après normalisation
+                val segments = ref.split(":")
+
+                // Assurer qu'il y a au moins deux segments
+                if (segments.size < 2) {
+                    logToFile("ref.txt", "invalid reference for index : $indexTitle with ref : $ref")
+                    return@mapNotNull null
+                }
+
+                val firstSegment = segments[0]
+                val secondSegmentRaw = segments[1]
+
+                // Gérer les plages de versets, ex. "36-42" => "36"
+                val secondSegment = secondSegmentRaw.split("-")[0]
+
+                // Extraction possible de la page Guemara ex. "2a"
+                val guemeraRef = firstSegment.extractNumberAndLetterAsString()
+
+                // Calcul du chapitre
+                val chapterComment = guemeraRef?.toGuemaraNumber()
+                    ?: firstSegment.toIntOrNull()
+                    ?: 0
+
+                // Calcul du verset
+                val verseNumber = secondSegment.toIntOrNull() ?: 1
+
+                // On imagine qu’on veut concaténer tous les éléments textuels
                 val text = when (val he = commentItem.he) {
                     is JsonArray -> he.joinToString(" ") { it.jsonPrimitive.content }
                     is JsonPrimitive -> he.contentOrNull
                     else -> null
                 }
-                if (text != null) TextWithRef(text = text, ref = if (guemeraRef != null ) guemeraRef.toGuemaraNumber().toString() + "/" + line else ref) else null
+
+                // Validation supplémentaire si nécessaire
+                if (secondSegment.toIntOrNull() == null) {
+                    logToFile("ref.txt", "error for index : $indexTitle with ref : $ref, verse segment : $secondSegment")
+                }
+
+                debugLog.appendLine()
+                debugLog.appendLine(" sourceRef: ${commentItem.sourceRef}")
+                debugLog.appendLine("Output chapter : $chapterComment")
+                debugLog.appendLine("Output verse : $verseNumber")
+
+                text?.let {
+                    TextWithRef(
+                        text = text,
+                        reference = Reference(chapter = chapterComment, verse = verseNumber, hebrewRef = commentItem.sourceHeRef )
+                    )
+                }
             }.filter { it.text.isNotEmpty() }
 
+            // Si on a extrait quelque chose
             if (textsWithRef.isNotEmpty()) {
                 val firstCategory = groupedComments.firstOrNull()?.category?.lowercase() ?: ""
                 val commentaryType = when (firstCategory) {
@@ -195,93 +234,34 @@ internal suspend fun fetchCommentsForVerse(
                     else -> OTHER_LINKS
                 }
 
+                val commentator = Commentator(name = commentatorName, bookId = indexTitle)
 
-                suspend fun fetchAndFormatCategories(commentatorName: String): String {
-                    // Check cache first
-                    return categoriesCache.getOrPut(commentatorName) {
-                        val url = "$BASE_URL/v2/raw/index/${commentatorName.replace(" ", "%20")}"
-                        val jsonString = fetchJsonFromApi(url)
-                        try {
-                            val response = json.decodeFromString<PathResponse>(jsonString)
-                            response.categories.joinToString("/")
-                        } catch (e: SerializationException) {
-                            logger.error("Failed to parse JSON: ${e.message}", e)
-                            ""
-                        }
-                    }
-                }
-
-                val commentator = Commentator(name = commentatorName, path = "${fetchAndFormatCategories(path)}/$path")
-
+                // Retourner un objet typé selon la catégorie
                 when (commentaryType) {
-                    COMMENTARY -> Commentary(
-                        commentator = commentator,
-                        texts = textsWithRef
-                    )
-                    TARGUM -> Targum(
-                        commentator = commentator,
-                        texts = textsWithRef
-                    )
-                    QUOTING_COMMENTARY -> QuotingCommentary(
-                        commentator = commentator,
-                        texts = textsWithRef
-                    )
-                    REFERENCE -> Reference(
-                        commentator = commentator,
-                        texts = textsWithRef
-                    )
-                    else -> OtherLinks(
-                        commentator = commentator,
-                        texts = textsWithRef
-                    )
+                    COMMENTARY -> Commentary(commentator = commentator, texts = textsWithRef)
+                    TARGUM -> Targum(commentator = commentator, texts = textsWithRef)
+                    QUOTING_COMMENTARY -> QuotingCommentary(commentator = commentator, texts = textsWithRef)
+                    REFERENCE -> Source(commentator = commentator, texts = textsWithRef)
+                    else -> OtherLinks(commentator = commentator, texts = textsWithRef)
                 }
             } else {
                 null
             }
         }
 
-    // Distribute by type
-    val commentaryList = allCommentaries.filterIsInstance<Commentary>()
-    val targumList = allCommentaries.filterIsInstance<Targum>()
-    val quotingList = allCommentaries.filterIsInstance<QuotingCommentary>()
-    val referenceList = allCommentaries.filterIsInstance<Reference>()
-    val otherList = allCommentaries.filterIsInstance<OtherLinks>()
+    debugLog.appendLine("--------------------")
+    logToFile("debug_log.txt", debugLog.toString())
 
-    // Return a structured object
-    return CommentaryResponse(
-        commentary = commentaryList,
-        targum = targumList,
-        quotingCommentary = quotingList,
-        reference = referenceList,
-        otherLinks = otherList
-    )
+    return result
 }
 
-fun String.extractNumberAndLetterAsString(): String? {
-    // Définir une expression régulière pour capturer un numéro suivi de "a" ou "b"
-    val regex = """(\d+)([ab])""".toRegex()
-    // Rechercher la première correspondance dans la chaîne
-    val matchResult = regex.find(this)
-    // Retourner le résultat formaté en String, ou null s'il n'y a pas de correspondance
-    return matchResult?.let {
-        val number = it.groupValues[1]
-        val letter = it.groupValues[2]
-        "$number$letter"
-    }
-}
+private fun CommentaryResponse.Companion.empty() = CommentaryResponse(
+    commentary = emptyList(),
+    targum = emptyList(),
+    quotingCommentary = emptyList(),
+    source = emptyList(),
+    otherLinks = emptyList()
+)
 
 
-private fun String.toGuemaraNumber(): Int? {
-    // Valider que la chaîne correspond à un format attendu comme "3a" ou "4b"
-    val regex = """(\d+)([ab])""".toRegex()
-    val matchResult = regex.matchEntire(this) ?: return null
 
-    val numberPart = matchResult.groupValues[1].toInt() // La partie numérique
-    val suffix = matchResult.groupValues[2]            // La partie lettre
-
-    return when (suffix) {
-        "a" -> (numberPart - 1) * 2 + 1
-        "b" -> (numberPart - 1) * 2
-        else -> null // En cas de suffixe invalide
-    }
-}

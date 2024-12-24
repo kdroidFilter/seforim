@@ -7,13 +7,14 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 
 /**
- * Fetches JSON data from the specified API URL.
- * This method sends an HTTP GET request to the provided URL and expects a JSON response.
- * If the response is not in JSON format, it returns an empty JSON object.
- * In case of an exception, the method retries the request.
+ * Fetches JSON data from the specified API URL. This method sends an HTTP
+ * GET request to the provided URL and expects a JSON response. If the
+ * response is not in JSON format, it returns an empty JSON object. In case
+ * of an exception, the method retries the request.
  *
  * @param url The API endpoint from which the JSON data will be fetched.
- * @return A String containing the JSON response from the API. If the response is not valid JSON, an empty JSON object ("{}") is returned.
+ * @return A String containing the JSON response from the API. If the
+ *    response is not valid JSON, an empty JSON object ("{}") is returned.
  */
 internal suspend fun fetchJsonFromApi(url: String): String {
     val client = HttpClient(CIO)

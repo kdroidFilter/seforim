@@ -16,22 +16,28 @@ data class CommentaryResponse(
     val commentary: List<Commentary> = emptyList(),
     val targum: List<Targum> = emptyList(),
     val quotingCommentary: List<QuotingCommentary> = emptyList(),
-    val reference: List<Reference> = emptyList(),
+    val source: List<Source> = emptyList(),
     val otherLinks: List<OtherLinks> = emptyList()
 )
 
 @Serializable
 data class Commentator(
     val name: String,
-    val path: String
+    val bookId: String
 )
 
 @Serializable
 data class TextWithRef(
     val text: String,
-    val ref: String
+    val reference: Reference
 )
 
+@Serializable
+data class Reference(
+    val chapter: Int?,
+    val verse: Int?,
+    val hebrewRef : String?
+)
 
 @Serializable
 sealed class CommentaryBase {
@@ -58,7 +64,7 @@ data class QuotingCommentary(
 ) : CommentaryBase()
 
 @Serializable
-data class Reference(
+data class Source(
     override val commentator: Commentator,
     override val texts: List<TextWithRef>
 ) : CommentaryBase()

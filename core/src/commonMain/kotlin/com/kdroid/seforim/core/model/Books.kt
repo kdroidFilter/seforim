@@ -27,6 +27,6 @@ data class Verse(
     val commentary: List<Commentary> = emptyList(),
     val targum: List<Targum> = emptyList(),
     val quotingCommentary: List<QuotingCommentary> = emptyList(),
-    val reference: List<Reference> = emptyList(),
+    val source: List<Source> = emptyList(),
     val otherLinks: List<OtherLinks> = emptyList()
 )

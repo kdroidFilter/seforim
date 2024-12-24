@@ -45,7 +45,7 @@ fun loadBookIndex2(bookTitle: String): BookIndex {
 
 @OptIn(ExperimentalSerializationApi::class)
 fun loadBookIndexFromDatabase(bookTitle: String): BookIndex? {
-    val database = createDatabase()
+    val database = readDatabase()
     // Utiliser la requête générée par SQLDelight pour récupérer l'index
     val row = database.bookIndexQueries.selectBookIndex(bookTitle).executeAsOneOrNull()
     return row?.let {
@@ -243,7 +243,7 @@ internal fun loadVerseFromProto2(bookTitle: String, chapter: Int, verse: Int): V
 }
 
 
-fun createDatabase(): Database {
+fun readDatabase(): Database {
     // Spécifiez le chemin absolu vers le fichier SQLite
     val absolutePath = "/home/elyahou/IdeaProjects/seforim/database/seforim.db"
     val driver = JdbcSqliteDriver("jdbc:sqlite:$absolutePath")
@@ -256,7 +256,7 @@ fun createDatabase(): Database {
 
 @OptIn(ExperimentalSerializationApi::class)
 internal fun loadVerseFromDb(bookTitle: String, chapter: Int, verse: Int): Verse? {
-    val database = createDatabase()
+    val database = readDatabase()
     val row = database.versesQueries.selectVerse(bookTitle, chapter.toLong(), verse.toLong()).executeAsOneOrNull()
     if (row != null) {
         val retrievedVerse = ProtoBuf.decodeFromByteArray<Verse>(row)
@@ -308,6 +308,20 @@ fun VerseScreen(verse: Verse) {
                                 textAlign = TextAlign.Justify,
                                 fontSize = 13.sp
                             )
+                            Text(
+                                text = remember(text) { commentary.commentator.bookId + " " + text.reference.verse + " " + text.reference.chapter },
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Justify,
+                                fontSize = 12.sp
+                            )
+                            text.reference.hebrewRef?.let {
+                                Text(
+                                    text = it,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Justify,
+                                    fontSize = 12.sp
+                                )
+                            }
                             Spacer(Modifier.height(10.dp))
                         }
                     }
@@ -319,7 +333,7 @@ fun VerseScreen(verse: Verse) {
         displayCommentSection("תרגומים", verse.targum)
         displayCommentSection("פירושים", verse.commentary)
         displayCommentSection("פירושים צדדים", verse.quotingCommentary)
-        displayCommentSection("מקורות", verse.reference)
+        displayCommentSection("מקורות", verse.source)
         displayCommentSection("קישורים אחרים", verse.otherLinks)
     }
 }
