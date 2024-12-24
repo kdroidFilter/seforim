@@ -53,7 +53,7 @@ fun main() {
                         TitleBarView()
                         Column(
                             Modifier.trackActivation().fillMaxSize().background(JewelTheme.globalColors.panelBackground)
-                        ) { SplitLayouts("Amos")
+                        ) { SplitLayouts("Tur, Choshen Mishpat")
                         }
                     },
                 )

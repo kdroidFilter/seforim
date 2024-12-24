@@ -6,8 +6,12 @@ import com.kdroid.seforim.database.builders.sefaria.book.util.logger
 import com.kdroid.seforim.database.common.createDatabase
 
 suspend fun main() {
-    val bookTitle = "Amos"
+    val bookList = listOf("Rashi on Horayot", "Horayot", "Amos", "Tur")
+    val bookTitle = "Rashi on Horayot"
     logger.info("Starting to build book: $bookTitle")
     val database = createDatabase()
-    buildBookFromShape(bookTitle, GENERATED_FOLDER, database)
+    for (book in bookList) {
+        buildBookFromShape(book, GENERATED_FOLDER, database)
+    }
+   // buildBookFromShape(bookTitle, GENERATED_FOLDER, database)
 }

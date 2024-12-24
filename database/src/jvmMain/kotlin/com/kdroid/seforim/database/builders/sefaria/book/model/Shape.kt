@@ -38,46 +38,54 @@ internal data class FlexibleShapeItem(
 ) {
 
     fun toShapeItem(logger: Logger): ShapeItem {
-        return when {
-            chapters is JsonArray -> {
-                // Vérifier si chaque élément de 'chapters' est un JsonPrimitive (structure simple)
-                if (chapters.jsonArray.all { it is JsonPrimitive && it.jsonPrimitive.intOrNull != null }) {
-                    // Structure simple : liste d'entiers représentant le nombre de versets par chapitre
-                    val chapList = chapters.jsonArray.mapNotNull { it.jsonPrimitive.intOrNull }
-                        .filter { it > 0 } // Filtrer les chapitres avec 0 versets si nécessaire
-                    ShapeItem(section, heTitle, title, length, chapList, book, heBook)
-                }
-                // Vérifier si chaque élément de 'chapters' est un JsonArray (structure complexe)
-                else if (chapters.jsonArray.all { it is JsonArray }) {
-                    // Structure complexe : liste de listes représentant les versets dans chaque chapitre
-                    val chapList = chapters.jsonArray.map { chapterElement ->
-                        if (chapterElement is JsonArray) {
-                            chapterElement.size // Nombre de versets dans le chapitre
-                        } else {
-                            logger.debug("Type inattendu dans les chapitres : ${chapterElement::class.simpleName}")
-                            0
+        val chapList = mutableListOf<Int>()
+
+        when (chapters) {
+            is JsonArray -> {
+                chapters.jsonArray.forEach { chapterElement ->
+                    when (chapterElement) {
+                        is JsonPrimitive -> {
+                            // Si c'est un entier, ajoutez-le directement
+                            chapterElement.jsonPrimitive.intOrNull?.let { chapList.add(it) }
                         }
-                    }.filter { it > 0 } // Filtrer les chapitres avec 0 versets si nécessaire
-                    ShapeItem(section, heTitle, title, length, chapList, book, heBook)
-                }
-                // Structure mixte ou inattendue
-                else {
-                    logger.debug("Structure inattendue pour 'chapters' dans '{}' : {}", title, chapters)
-                    ShapeItem(section, heTitle, title, length, emptyList(), book, heBook)
+                        is JsonArray -> {
+                            // Si c'est une liste, calculez le nombre de versets
+                            val verseCount = chapterElement.jsonArray.sumOf { verse ->
+                                when (verse) {
+                                    is JsonPrimitive -> verse.jsonPrimitive.intOrNull ?: 0
+                                    else -> 0
+                                }
+                            }
+                            chapList.add(verseCount)
+                        }
+                        else -> {
+                            // Ignorer les autres types
+                            logger.debug("Type inattendu dans les chapitres : ${chapterElement::class.simpleName}")
+                        }
+                    }
                 }
             }
-            // Si 'chapters' est un JsonPrimitive avec une valeur entière
-            chapters is JsonPrimitive && chapters.jsonPrimitive.intOrNull != null -> {
-                val singleChapter = chapters.jsonPrimitive.int
-                ShapeItem(section, heTitle, title, length, listOf(singleChapter), book, heBook)
+            is JsonPrimitive -> {
+                // Si c'est un entier, ajoutez-le directement
+                chapters.jsonPrimitive.intOrNull?.let { chapList.add(it) }
             }
-            // Format non supporté
             else -> {
                 logger.debug("Format non supporté pour le champ 'chapters' dans '{}' : {}", title, chapters)
-                ShapeItem(section, heTitle, title, length, emptyList(), book, heBook)
             }
         }
-    }
 
+        // Filtrer les chapitres avec 0 versets si nécessaire
+        val filteredChapList = chapList.filter { it > 0 }
+
+        return ShapeItem(
+            section = section,
+            heTitle = heTitle,
+            title = title,
+            length = length,
+            chapters = filteredChapList,
+            book = book,
+            heBook = heBook
+        )
+    }
 
 }
