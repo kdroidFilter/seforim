@@ -109,7 +109,7 @@ class BookProcessor {
         }
 
         coroutineScope {
-            val semaphore = Semaphore(20)
+            val semaphore = Semaphore(1)
             val tasks = mutableListOf<Deferred<Unit>>()
             val applyOffset = shouldApplyOffset()
 

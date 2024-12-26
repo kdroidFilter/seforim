@@ -16,6 +16,8 @@ import io.ktor.client.statement.*
  * @return A String containing the JSON response from the API. If the
  *    response is not valid JSON, an empty JSON object ("{}") is returned.
  */
+private var repetitions = 0
+
 internal suspend fun fetchJsonFromApi(url: String): String {
     val client = HttpClient(CIO)
     logger.info("Fetching data from: $url")
@@ -33,7 +35,11 @@ internal suspend fun fetchJsonFromApi(url: String): String {
         }
     } catch (e: Exception) {
         logger.error("Error fetching data from $url: ${e.message}", e)
-        fetchJsonFromApi(url) // Retries the request in case of an error
+        if (repetitions < 5) {
+            repetitions++
+            fetchJsonFromApi(url) // Retries the request in case of an error
+
+        } else "{}"
     } finally {
         client.close()
     }

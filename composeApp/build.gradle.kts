@@ -80,7 +80,7 @@ kotlin {
 
             implementation(libs.kotlinx.serialization.json)
 
-            implementation("com.mohamedrejeb.dnd:compose-dnd:0.3.0")
+            implementation("sh.calvin.reorderable:reorderable:2.4.0")
 
             implementation(libs.jsystemthemedetector)
             implementation(libs.sqlite.driver)

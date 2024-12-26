@@ -12,15 +12,14 @@ import com.kdroid.seforim.database.common.config.json
 import com.kdroid.seforim.database.common.constants.BASE_URL
 import com.kdroid.seforim.database.common.constants.BLACKLIST
 import com.kdroid.seforim.database.common.createDatabase
-
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
-import java.io.File
 import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.json.*
 import kotlinx.serialization.protobuf.ProtoBuf
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.io.File
 
 /**
  * Crée des répertoires et des fichiers basés sur la structure fournie du Table of Content (ToC).
@@ -197,12 +196,12 @@ private suspend fun checkForComplexBook(
     logger.info("Vérification si le livre est complexe : $bookTitle")
     val shapeUrl = "$BASE_URL/shape/$encodedTitle"
 
-//     Liste des livres considérés comme complexes
-    val complexBooks = listOf("Tur", "Abarbanel on Torah", "Beit Yosef")
-    if (bookTitle !in complexBooks) {
-        logger.info("Le livre '$bookTitle' n'est pas complexe. Aucune vérification API nécessaire.")
-        return emptyList()
-    }
+////     Liste des livres considérés comme complexes
+//    val complexBooks = listOf("Tur", "Abarbanel on Torah", "Beit Yosef")
+//    if (bookTitle !in complexBooks) {
+//        logger.info("Le livre '$bookTitle' n'est pas complexe. Aucune vérification API nécessaire.")
+//        return emptyList()
+//    }
 
     return try {
         val shapeJson = fetchJsonFromApi(shapeUrl)
